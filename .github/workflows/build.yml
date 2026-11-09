@@ -1,0 +1,62 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build app
+        run: dotnet publish src/SiberiaConnect.csproj -c Release -o publish -p:Version=${{ env.APP_VERSION }}
+
+      - name: VPN core (Xray) and geo files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force publish/core, deps | Out-Null
+          gh release download -R XTLS/Xray-core -p "Xray-windows-64.zip" -D deps
+          Expand-Archive deps/Xray-windows-64.zip -DestinationPath deps/xray -Force
+          Copy-Item deps/xray/xray.exe publish/core/
+          Copy-Item deps/xray/LICENSE publish/core/LICENSE-xray.txt -ErrorAction SilentlyContinue
+          Invoke-WebRequest https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat -OutFile publish/core/geosite.dat
+          Invoke-WebRequest https://github.com/v2fly/geoip/releases/latest/download/geoip.dat -OutFile publish/core/geoip.dat
+          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile deps/MicrosoftEdgeWebview2Setup.exe
+          & publish/core/xray.exe version
+          Get-ChildItem publish -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc installer/setup.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Portable zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath "out/SiberiaConnect-Portable-$env:APP_VERSION.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SiberiaConnect-Windows-${{ env.APP_VERSION }}
+          path: out/*
+          retention-days: 30

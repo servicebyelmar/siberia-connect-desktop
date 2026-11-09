@@ -1,0 +1,28 @@
+<p align="center"><img src="assets/icon.svg" width="120" alt="Siberia Connect"></p>
+
+<h1 align="center">Siberia Connect для Windows</h1>
+
+<p align="center">Быстрый VPN в одну кнопку. Своё приложение — без сторонних клиентов и ручной настройки.</p>
+
+## Что умеет
+
+- ❄️ **Одна кнопка** — нажми на снежинку, и подключение защищено
+- 🔑 **Вход** через Telegram или по коду доступа `SC-XXXXX-XXXXX`
+- 🇷🇺 **Российские сайты и банки — напрямую**, мимо VPN: быстрее и без капчи
+- 🌍 **Выбор сервера** — разные способы обхода блокировок
+- 🚀 **Автозапуск** с Windows и автоподключение
+- 🧊 **Значок в трее** — VPN работает, даже когда окно закрыто
+- 🔒 Работают только ключи Siberia Connect
+
+## Установка
+
+Скачай установщик на странице [sibirapp.duckdns.org/app/dl](https://sibirapp.duckdns.org/app/dl/) или в боте [@SibirConnectBot](https://t.me/SibirConnectBot).
+Права администратора не нужны. Windows 10 и 11 (64-бит).
+
+## Поддержка
+
+[@SibirHelpBot](https://t.me/SibirHelpBot) · канал новостей и статуса серверов — в приложении, раздел «Профиль».
+
+---
+
+<sub>VPN-движок — [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0). Интерфейс — Microsoft Edge WebView2.</sub>

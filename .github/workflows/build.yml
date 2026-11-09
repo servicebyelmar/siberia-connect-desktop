@@ -40,8 +40,29 @@ jobs:
           Invoke-WebRequest https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat -OutFile publish/core/geosite.dat
           Invoke-WebRequest https://github.com/v2fly/geoip/releases/latest/download/geoip.dat -OutFile publish/core/geoip.dat
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile deps/MicrosoftEdgeWebview2Setup.exe
+          # sing-box (ветка 1.11) — режим «Весь компьютер» (TUN, wintun встроен)
+          $sb = gh release list -R SagerNet/sing-box --limit 100 --json tagName --jq '.[].tagName' | Where-Object { $_ -match '^v1\.11\.\d+$' } | Select-Object -First 1
+          if (-not $sb) { throw "sing-box 1.11 не найден" }
+          gh release download $sb -R SagerNet/sing-box -p "sing-box-*-windows-amd64.zip" -D deps/sb
+          Get-ChildItem deps/sb/*.zip | ForEach-Object { Expand-Archive $_.FullName -DestinationPath deps/sb/x -Force }
+          Get-ChildItem deps/sb/x -Recurse -Filter sing-box.exe | Select-Object -First 1 | Copy-Item -Destination publish/core/sing-box.exe
+          Get-ChildItem deps/sb/x -Recurse -Filter LICENSE | Select-Object -First 1 | Copy-Item -Destination publish/core/LICENSE-sing-box.txt -ErrorAction SilentlyContinue
           & publish/core/xray.exe version
+          & publish/core/sing-box.exe version
           Get-ChildItem publish -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Self-test (configs checked by the real engines)
+        shell: pwsh
+        run: |
+          Start-Process -FilePath publish/SiberiaConnect.exe -ArgumentList '--selftest', "$PWD/selftest" -Wait
+          Get-ChildItem selftest
+          $env:XRAY_LOCATION_ASSET = "$PWD/publish/core"
+          foreach ($f in 'xray-reality.json', 'xray-xhttp.json') {
+            & publish/core/xray.exe run -test -c "selftest/$f"
+            if ($LASTEXITCODE -ne 0) { throw "xray отверг $f" }
+          }
+          & publish/core/sing-box.exe check -c selftest/tun.json
+          if ($LASTEXITCODE -ne 0) { throw "sing-box отверг tun.json" }
 
       - name: Installer (Inno Setup)
         shell: pwsh

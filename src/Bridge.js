@@ -21,6 +21,9 @@
     openExternal: function (u) { send('open', [String(u || '')]); },
     stats: function () { var s = S.stats || {}; return JSON.stringify({ rx: s.rx || 0, tx: s.tx || 0, since: s.since || 0, now: s.now || Date.now() }); },
     autoStart: function () { return !!S.autoStart; },
+    tunMode: function () { return !!S.tun; },
+    tunActive: function () { return !!S.tunActive; },
+    setTunMode: function (on) { S.tun = !!on; send('tunMode', [!!on]); },
     setAutoStart: function (on) { S.autoStart = !!on; send('autoStart', [!!on]); },
     advanced: function () { send('advanced'); }
   };

@@ -31,7 +31,9 @@ public sealed class MainForm : Form
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-    public MainForm(bool autostart)
+    private readonly Panel _splash;
+
+    public MainForm(bool autostart, bool connectNow = false)
     {
         Instance = this;
         _allowShow = !autostart;
@@ -47,6 +49,20 @@ public sealed class MainForm : Form
         MinimumSize = new Size(760, 560);
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(6, 15, 42) };
         Controls.Add(_web);
+        // 1.0.2: фирменная заставка на доли секунды, пока поднимается интерфейс
+        _splash = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(6, 15, 42) };
+        var logo = new PictureBox { Size = new Size(120, 120), SizeMode = PictureBoxSizeMode.Zoom, Image = AppInfo.LoadBitmap(), BackColor = Color.Transparent };
+        var title = new Label { Text = "Siberia Connect", AutoSize = true, ForeColor = Color.White, BackColor = Color.Transparent,
+            Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold) };
+        _splash.Controls.Add(logo);
+        _splash.Controls.Add(title);
+        _splash.Resize += (_, _) =>
+        {
+            logo.Location = new Point((_splash.ClientSize.Width - logo.Width) / 2, _splash.ClientSize.Height / 2 - logo.Height + 10);
+            title.Location = new Point((_splash.ClientSize.Width - title.Width) / 2, logo.Bottom + 18);
+        };
+        Controls.Add(_splash);
+        _splash.BringToFront();
         ResumeLayout(false);
 
         Core = new VpnCore();
@@ -67,8 +83,9 @@ public sealed class MainForm : Form
 
         SystemEvents.SessionEnding += (_, _) => Core.Shutdown();
 
-        if (autostart && Core.State.AutoStart && Core.HasSub)
+        if (Core.HasSub && (connectNow || (autostart && Core.State.AutoStart)))
             Task.Run(Core.Connect);
+        if (Elevation.IsAdmin && Core.State.AutoStart) AutoStart.Set(true, Core.State.TunMode);
     }
 
     // ───────────────────────── Окно ─────────────────────────
@@ -218,6 +235,7 @@ public sealed class MainForm : Form
         }
         catch (WebView2RuntimeNotFoundException)
         {
+            HideSplash();
             Log.Write("WebView2 runtime not found");
             if (MessageBox.Show(this,
                     "Для работы Siberia Connect нужен компонент Microsoft Edge WebView2.\n\nОткрыть страницу загрузки?",
@@ -227,6 +245,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            HideSplash();
             Log.Write("WebView2 init: " + ex);
             MessageBox.Show(this, "Не удалось запустить интерфейс: " + ex.Message, "Siberia Connect",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -278,8 +297,14 @@ public sealed class MainForm : Form
         OpenExternal(uri);
     }
 
+    private void HideSplash()
+    {
+        if (_splash != null && _splash.Visible) { _splash.Visible = false; _web.Focus(); }
+    }
+
     private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        HideSplash();
         if (!e.IsSuccess && e.WebErrorStatus != CoreWebView2WebErrorStatus.OperationCanceled)
         {
             Log.Write("page load failed: " + e.WebErrorStatus);
@@ -321,8 +346,36 @@ public sealed class MainForm : Form
                 break;
             }
             case "connect":
+                if (Core.State.TunMode && !Elevation.IsAdmin)
+                {
+                    if (Elevation.Relaunch("--connect")) { ExitApp(); return; }
+                    Emit(new JsonObject { ["type"] = "state", ["state"] = "error",
+                        ["error"] = "Для режима «Весь компьютер» нужно разрешение Windows. Нажми «Да» в окне или выключи режим в Профиле" });
+                    break;
+                }
                 Task.Run(Core.Connect);
                 break;
+            case "tunMode":
+            {
+                var on = A(0) == "true";
+                var wasRunning = Core.Running;
+                Core.State.TunMode = on;
+                Core.State.Save();
+                if (on && !Elevation.IsAdmin)
+                {
+                    if (Elevation.Relaunch(wasRunning ? "--connect" : "")) { ExitApp(); return; }
+                    Core.State.TunMode = false;
+                    Core.State.Save();
+                    Emit(new JsonObject { ["type"] = "toast", ["text"] = "Без разрешения Windows режим «Весь компьютер» не включить" });
+                    PushSnapshot();
+                    break;
+                }
+                if (Elevation.IsAdmin) AutoStart.Set(Core.State.AutoStart, on);
+                PushSnapshot();
+                Emit(new JsonObject { ["type"] = "toast", ["text"] = on ? "✅ Весь компьютер идёт через VPN" : "Режим «Весь компьютер» выключен" });
+                if (wasRunning) Task.Run(Core.Reconnect);
+                break;
+            }
             case "disconnect":
                 Task.Run(Core.Disconnect);
                 break;
@@ -338,7 +391,7 @@ public sealed class MainForm : Form
             case "autoStart":
             {
                 var on = A(0) == "true";
-                AutoStart.Set(on);
+                AutoStart.Set(on, Core.State.TunMode);
                 Core.State.AutoStart = on;
                 Core.State.Save();
                 PushSnapshot();
@@ -377,6 +430,9 @@ public sealed class MainForm : Form
             ["subUrl"] = Core.State.SubUrl ?? "",
             ["servers"] = servers,
             ["autoStart"] = Core.State.AutoStart,
+            ["tun"] = Core.State.TunMode,
+            ["tunActive"] = Core.TunActive,
+            ["admin"] = Elevation.IsAdmin,
             ["stats"] = StatsJson()
         };
     }

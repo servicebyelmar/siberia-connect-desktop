@@ -29,6 +29,17 @@ internal static class AppInfo
         return r.ReadToEnd();
     }
 
+    public static Bitmap LoadBitmap()
+    {
+        try
+        {
+            using var s = Resource("app.ico");
+            using var ic = new Icon(s, 256, 256);
+            return ic.ToBitmap();
+        }
+        catch { return null; }
+    }
+
     public static Icon LoadIcon(bool on)
     {
         try
@@ -55,6 +66,8 @@ internal static class Paths
     public static readonly string AppDir = AppContext.BaseDirectory;
     public static readonly string CoreDir = Path.Combine(AppDir, "core");
     public static readonly string Xray = Path.Combine(CoreDir, "xray.exe");
+    public static readonly string SingBox = Path.Combine(CoreDir, "sing-box.exe");
+    public static readonly string TunConfig = Path.Combine(Data, "tun-config.json");
 
     static Paths()
     {
@@ -109,6 +122,7 @@ public sealed class AppState
     public string Selected { get; set; } = "";
     public DateTime LastUpdate { get; set; }
     public bool AutoStart { get; set; }
+    public bool TunMode { get; set; }   // 1.0.2: «Весь компьютер»
 
     // Настройки прокси Windows до включения VPN (чтобы вернуть как было)
     public bool ProxySaved { get; set; }
@@ -189,15 +203,56 @@ internal static class AutoStart
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string Name = "SiberiaConnect";
 
-    public static void Set(bool on)
+    /// <summary>Обычный режим — ключ Run. «Весь компьютер» — задача планировщика с наивысшими правами
+    /// (иначе при входе в Windows каждый раз появлялось бы окно UAC).</summary>
+    public static void Set(bool on, bool tun = false)
     {
         try
         {
             using var k = Registry.CurrentUser.CreateSubKey(RunKey, true);
-            if (on) k.SetValue(Name, $"\"{Environment.ProcessPath}\" --autostart");
+            if (on && !(tun && Elevation.IsAdmin)) k.SetValue(Name, $"\"{Environment.ProcessPath}\" --autostart");
             else k.DeleteValue(Name, false);
         }
         catch (Exception ex) { Log.Write("autostart: " + ex.Message); }
+        if (!Elevation.IsAdmin) return;
+        try
+        {
+            var args = on && tun
+                ? $"/Create /F /TN SiberiaConnect /TR \"\\\"{Environment.ProcessPath}\\\" --autostart\" /SC ONLOGON /RL HIGHEST"
+                : "/Delete /F /TN SiberiaConnect";
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("schtasks.exe", args)
+                { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true });
+            p?.WaitForExit(8000);
+        }
+        catch (Exception ex) { Log.Write("schtasks: " + ex.Message); }
+    }
+}
+
+/// <summary>Права администратора — нужны только режиму «Весь компьютер» (виртуальный адаптер).</summary>
+internal static class Elevation
+{
+    public static readonly bool IsAdmin = Check();
+
+    private static bool Check()
+    {
+        try
+        {
+            using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
+            return new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Перезапуск с правами администратора (окно UAC). false — пользователь отказался.</summary>
+    public static bool Relaunch(string extraArgs)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath, "--takeover " + extraArgs)
+                { UseShellExecute = true, Verb = "runas" });
+            return true;
+        }
+        catch (Exception ex) { Log.Write("elevate: " + ex.Message); return false; }
     }
 }
 

@@ -31,6 +31,9 @@ public sealed class VpnCore
     private Process _proc;
     private volatile bool _stopping;
     private int _httpPort;
+    private int _socksPort;
+    private Process _tun;
+    public bool TunActive { get; private set; }
 
     private static readonly HttpClient Direct = new(new HttpClientHandler
     {
@@ -196,7 +199,12 @@ public sealed class VpnCore
                     err = StartCore(srv, false);
                 }
                 if (err != null) { FireError(err); return; }
-                SysProxy.Enable($"127.0.0.1:{_httpPort}", State);
+                if (State.TunMode && Elevation.IsAdmin)
+                {
+                    var terr = StartTun();
+                    if (terr != null) { StopProc(); FireError(terr); return; }
+                }
+                else SysProxy.Enable($"127.0.0.1:{_httpPort}", State);
                 Running = true;
                 Since = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Fire("on");
@@ -216,6 +224,7 @@ public sealed class VpnCore
     {
         lock (_gate)
         {
+            StopTun();
             StopProc();
             SysProxy.Restore(State);
             Running = false;
@@ -249,6 +258,7 @@ public sealed class VpnCore
         try
         {
             _stopping = true;
+            try { if (_tun != null && !_tun.HasExited) _tun.Kill(true); } catch { }
             try { if (_proc != null && !_proc.HasExited) _proc.Kill(true); } catch { }
             SysProxy.Restore(State);
             Running = false;
@@ -261,6 +271,7 @@ public sealed class VpnCore
         if (!File.Exists(Paths.Xray)) return "Не найден движок VPN. Переустанови Siberia Connect";
         StopProc();
         int socks = FreePort(SocksPortBase);
+        _socksPort = socks;
         _httpPort = FreePort(socks + 1);
         string cfg;
         try { cfg = XrayConfig.Build(srv.Uri, socks, _httpPort, useGeo); }
@@ -331,8 +342,9 @@ public sealed class VpnCore
         Log.Write("core exited unexpectedly");
         lock (_gate)
         {
-            if (!ReferenceEquals(sender, _proc)) return;
-            _proc = null;
+            if (!ReferenceEquals(sender, _proc) && !ReferenceEquals(sender, _tun)) return;
+            StopTun();
+            StopProc();
             SysProxy.Restore(State);
             Running = false;
             Since = 0;
@@ -360,16 +372,97 @@ public sealed class VpnCore
 
     public static void KillOrphans()
     {
-        foreach (var p in Process.GetProcessesByName("xray"))
+        foreach (var (name, path) in new[] { ("xray", Paths.Xray), ("sing-box", Paths.SingBox) })
         {
-            try
+            foreach (var p in Process.GetProcessesByName(name))
             {
-                var f = p.MainModule?.FileName;
-                if (f != null && string.Equals(Path.GetFullPath(f), Path.GetFullPath(Paths.Xray), StringComparison.OrdinalIgnoreCase))
-                    p.Kill(true);
+                try
+                {
+                    var f = p.MainModule?.FileName;
+                    if (f != null && string.Equals(Path.GetFullPath(f), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
+                        p.Kill(true);
+                }
+                catch { }
             }
-            catch { }
         }
+    }
+
+    // ───────────────────────── «Весь компьютер» (TUN) ─────────────────────────
+    // sing-box поднимает виртуальный адаптер (wintun) и отдаёт весь трафик в локальный SOCKS Xray.
+    // Трафик самого Xray и локальная сеть (принтеры, роутер) идут мимо адаптера.
+
+    private string StartTun()
+    {
+        if (!File.Exists(Paths.SingBox)) return "Не найден компонент «Весь компьютер». Переустанови Siberia Connect";
+        StopTun();
+        try { File.WriteAllText(Paths.TunConfig, TunConfigBuilder.Build(_socksPort), new UTF8Encoding(false)); }
+        catch (Exception ex) { return "Не удалось подготовить режим «Весь компьютер»: " + ex.Message; }
+        var psi = new ProcessStartInfo(Paths.SingBox, $"run -c \"{Paths.TunConfig}\" -D \"{Paths.Data}\" --disable-color")
+        {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            WorkingDirectory = Paths.CoreDir
+        };
+        var p = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        var tail = new StringBuilder();
+        DataReceivedEventHandler h = (_, e) =>
+        {
+            if (e.Data == null) return;
+            Log.Core("[tun] " + e.Data);
+            lock (tail) { tail.AppendLine(e.Data); if (tail.Length > 3000) tail.Remove(0, tail.Length - 3000); }
+        };
+        p.OutputDataReceived += h;
+        p.ErrorDataReceived += h;
+        _stopping = false;
+        p.Start();
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+        var sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < 10000)
+        {
+            if (p.HasExited)
+            {
+                string last;
+                lock (tail) last = tail.ToString().Trim().Split('\n').LastOrDefault() ?? "";
+                try { File.Delete(Paths.TunConfig); } catch { }
+                return "Режим «Весь компьютер» не запустился: " + last.Trim();
+            }
+            if (TunUp())
+            {
+                Thread.Sleep(300);
+                if (p.HasExited) continue;
+                _tun = p;
+                p.Exited += OnCoreExited;
+                TunActive = true;
+                try { File.Delete(Paths.TunConfig); } catch { }
+                return null;
+            }
+            Thread.Sleep(200);
+        }
+        try { p.Kill(true); } catch { }
+        try { File.Delete(Paths.TunConfig); } catch { }
+        return "Режим «Весь компьютер» долго запускается — попробуй ещё раз";
+    }
+
+    private static bool TunUp()
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces().Any(n =>
+                n.Name.Equals(TunConfigBuilder.InterfaceName, StringComparison.OrdinalIgnoreCase) &&
+                n.OperationalStatus == OperationalStatus.Up);
+        }
+        catch { return false; }
+    }
+
+    private void StopTun()
+    {
+        var p = _tun;
+        _tun = null;
+        TunActive = false;
+        if (p == null) return;
+        _stopping = true;
+        try { if (!p.HasExited) { p.Kill(true); p.WaitForExit(4000); } } catch { }
+        finally { try { p.Dispose(); } catch { } }
     }
 
     private static int FreePort(int start)
@@ -410,6 +503,7 @@ public sealed class VpnCore
             {
                 if (ni.OperationalStatus != OperationalStatus.Up) continue;
                 if (ni.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
+                if (ni.Name.Equals(TunConfigBuilder.InterfaceName, StringComparison.OrdinalIgnoreCase)) continue;
                 var s = ni.GetIPStatistics();
                 rx += s.BytesReceived;
                 tx += s.BytesSent;

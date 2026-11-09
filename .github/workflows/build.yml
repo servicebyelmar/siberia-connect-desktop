@@ -41,7 +41,7 @@ jobs:
           Invoke-WebRequest https://github.com/v2fly/geoip/releases/latest/download/geoip.dat -OutFile publish/core/geoip.dat
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile deps/MicrosoftEdgeWebview2Setup.exe
           # sing-box (ветка 1.11) — режим «Весь компьютер» (TUN, wintun встроен)
-          $sb = gh release list -R SagerNet/sing-box --limit 100 --json tagName --jq '.[].tagName' | Where-Object { $_ -match '^v1\.11\.\d+$' } | Select-Object -First 1
+          $sb = gh release list -R SagerNet/sing-box --limit 1000 --json tagName --jq '.[].tagName' | Where-Object { $_ -match '^v1\.11\.\d+$' } | Select-Object -First 1
           if (-not $sb) { throw "sing-box 1.11 не найден" }
           gh release download $sb -R SagerNet/sing-box -p "sing-box-*-windows-amd64.zip" -D deps/sb
           Get-ChildItem deps/sb/*.zip | ForEach-Object { Expand-Archive $_.FullName -DestinationPath deps/sb/x -Force }

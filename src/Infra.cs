@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 
 namespace SiberiaConnect;
 
@@ -46,7 +48,8 @@ internal static class Paths
     public static readonly string Data = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SiberiaConnect");
     public static readonly string Logs = Path.Combine(Data, "logs");
-    public static readonly string StateFile = Path.Combine(Data, "state.json");
+    public static readonly string StateFile = Path.Combine(Data, "state.json");      // старый формат (до 1.0.1)
+    public static readonly string StateDat = Path.Combine(Data, "state.dat");        // зашифрован DPAPI
     public static readonly string CoreConfig = Path.Combine(Data, "core-config.json");
     public static readonly string WebData = Path.Combine(Data, "WebView2");
     public static readonly string AppDir = AppContext.BaseDirectory;
@@ -117,16 +120,27 @@ public sealed class AppState
     private static readonly JsonSerializerOptions Opts = new() { WriteIndented = true };
     private static readonly object Gate = new();
 
+    // sec_v4: состояние (ссылка подписки, серверы) шифруется DPAPI — прочитать может только этот пользователь Windows
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("SiberiaConnect.state.v1");
+
     public static AppState Load()
     {
         try
         {
-            if (File.Exists(Paths.StateFile))
+            if (File.Exists(Paths.StateDat))
+            {
+                var raw = ProtectedData.Unprotect(File.ReadAllBytes(Paths.StateDat), Entropy, DataProtectionScope.CurrentUser);
+                var st = JsonSerializer.Deserialize<AppState>(Encoding.UTF8.GetString(raw), Opts);
+                if (st != null) { st.Servers ??= new List<ServerItem>(); return st; }
+            }
+            else if (File.Exists(Paths.StateFile))
             {
                 var st = JsonSerializer.Deserialize<AppState>(File.ReadAllText(Paths.StateFile), Opts);
                 if (st != null)
                 {
                     st.Servers ??= new List<ServerItem>();
+                    st.Save();
+                    try { File.Delete(Paths.StateFile); } catch { }
                     return st;
                 }
             }
@@ -141,9 +155,11 @@ public sealed class AppState
         {
             lock (Gate)
             {
-                var tmp = Paths.StateFile + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(this, Opts));
-                File.Move(tmp, Paths.StateFile, true);
+                var data = ProtectedData.Protect(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(this, Opts)), Entropy,
+                    DataProtectionScope.CurrentUser);
+                var tmp = Paths.StateDat + ".tmp";
+                File.WriteAllBytes(tmp, data);
+                File.Move(tmp, Paths.StateDat, true);
             }
         }
         catch (Exception ex) { Log.Write("state save: " + ex.Message); }
@@ -262,5 +278,33 @@ internal static class SysProxy
             Refresh();
         }
         catch (Exception ex) { Log.Write("proxy off: " + ex.Message); }
+    }
+}
+
+/// <summary>sec_v4: TLS к нашим серверам принимается, только если цепочка ведёт к корню Let's Encrypt (ISRG Root X1/X2).
+/// Поддельный корневой сертификат, установленный в систему, не поможет подменить ответы.</summary>
+internal static class Pinning
+{
+    private static readonly string[] Roots =
+    {
+        "96BCEC06264976F37460779ACF28C5A7CFE8A3C0AAE11A8FFCEE05C0BDDF08C6", // ISRG Root X1
+        "69729B8E15A86EFC177A57AFB7171DFC64ADD28C2FCA8CF1507E34453CCB1470"  // ISRG Root X2
+    };
+    private static readonly DateTime Until = new(2030, 1, 1);
+
+    public static bool Check(HttpRequestMessage req, X509Certificate2 cert, X509Chain chain, SslPolicyErrors errors)
+    {
+        if (errors != SslPolicyErrors.None) return false;
+        if (DateTime.UtcNow > Until) return true;
+        if (chain != null)
+        {
+            foreach (var el in chain.ChainElements)
+            {
+                var h = Convert.ToHexString(el.Certificate.GetCertHash(HashAlgorithmName.SHA256));
+                if (Roots.Contains(h)) return true;
+            }
+        }
+        Log.Write("TLS pin failed: " + req?.RequestUri?.Host);
+        return false;
     }
 }

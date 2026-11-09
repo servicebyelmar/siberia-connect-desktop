@@ -35,12 +35,14 @@ public sealed class VpnCore
     private static readonly HttpClient Direct = new(new HttpClientHandler
     {
         UseProxy = false,
-        AutomaticDecompression = DecompressionMethods.All
+        AutomaticDecompression = DecompressionMethods.All,
+        ServerCertificateCustomValidationCallback = Pinning.Check
     }) { Timeout = TimeSpan.FromSeconds(20) };
 
     private static readonly HttpClient ViaSystem = new(new HttpClientHandler
     {
-        AutomaticDecompression = DecompressionMethods.All
+        AutomaticDecompression = DecompressionMethods.All,
+        ServerCertificateCustomValidationCallback = Pinning.Check
     }) { Timeout = TimeSpan.FromSeconds(20) };
 
     public VpnCore()
@@ -298,12 +300,14 @@ public sealed class VpnCore
         {
             if (p.HasExited)
             {
+                DeleteConfig();
                 string last;
                 lock (tail) last = tail.ToString().Trim().Split('\n').LastOrDefault() ?? "";
                 return "Движок VPN остановился: " + last.Trim();
             }
             if (PortOpen(_httpPort))
             {
+                DeleteConfig();   // sec_v4: ядро уже прочитало конфиг — не держим ключ на диске
                 _proc = p;
                 p.Exited += OnCoreExited;
                 if (p.HasExited) return "Движок VPN остановился сразу после запуска";
@@ -312,7 +316,13 @@ public sealed class VpnCore
             Thread.Sleep(150);
         }
         try { p.Kill(true); } catch { }
+        DeleteConfig();
         return "Движок VPN долго запускается — попробуй ещё раз";
+    }
+
+    private static void DeleteConfig()
+    {
+        try { if (File.Exists(Paths.CoreConfig)) File.Delete(Paths.CoreConfig); } catch { }
     }
 
     private void OnCoreExited(object sender, EventArgs e)

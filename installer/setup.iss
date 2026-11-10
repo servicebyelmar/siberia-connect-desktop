@@ -51,6 +51,8 @@ Name: "{userdesktop}\Siberia Connect"; Filename: "{app}\SiberiaConnect.exe"; Tas
 [Run]
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Устанавливаю компонент Microsoft WebView2…"; Check: NeedsWebView2; Flags: waituntilterminated
 Filename: "{app}\SiberiaConnect.exe"; Description: "Запустить Siberia Connect"; Flags: nowait postinstall skipifsilent
+; обновление из приложения (тихая установка): сразу запускаем новую версию, при необходимости с подключением
+Filename: "{app}\SiberiaConnect.exe"; Parameters: "{param:scargs|}"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{app}\SiberiaConnect.exe"; Parameters: "--cleanup"; Flags: runhidden waituntilterminated; RunOnceId: "ScCleanup"
@@ -74,6 +76,6 @@ var Code: Integer;
 begin
   // Перед обновлением: остановить VPN и вернуть настройки прокси
   if FileExists(ExpandConstant('{app}\SiberiaConnect.exe')) then
-    Exec(ExpandConstant('{app}\SiberiaConnect.exe'), '--cleanup', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Exec(ExpandConstant('{app}\SiberiaConnect.exe'), '--cleanup --update', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Result := '';
 end;

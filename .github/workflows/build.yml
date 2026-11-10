@@ -73,6 +73,30 @@ jobs:
           & $iscc installer/setup.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      - name: Sign update (ключ только в секретах GitHub)
+        shell: pwsh
+        env:
+          UPDATE_KEY: ${{ secrets.UPDATE_KEY }}
+        run: |
+          if (-not $env:UPDATE_KEY) { throw "Нет секрета UPDATE_KEY: GitHub → Settings → Secrets and variables → Actions → New repository secret" }
+          $exe = Get-ChildItem out/SiberiaConnect-Setup-*.exe | Select-Object -First 1
+          $sha = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $ec = [System.Security.Cryptography.ECDsa]::Create()
+          $ec.ImportFromPem($env:UPDATE_KEY)
+          $msg = [System.Text.Encoding]::ASCII.GetBytes("SiberiaConnect-Windows|$env:APP_VERSION|$sha")
+          $fmt = [System.Security.Cryptography.DSASignatureFormat]::Rfc3279DerSequence
+          $sha256 = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+          $sigBytes = $ec.SignData($msg, $sha256, $fmt)
+          # проверяем подпись тем открытым ключом, который зашит в приложение — ровно как это сделает приложение
+          $src = Get-Content src/Updater.cs -Raw
+          if (-not ($src -match '(-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----)')) { throw "В Updater.cs нет открытого ключа" }
+          $pub = [System.Security.Cryptography.ECDsa]::Create()
+          $pub.ImportFromPem($Matches[1])
+          if (-not $pub.VerifyData($msg, $sigBytes, $sha256, $fmt)) { throw "Секрет UPDATE_KEY не подходит к открытому ключу в Updater.cs" }
+          $sig = [Convert]::ToBase64String($sigBytes)
+          [ordered]@{ version = $env:APP_VERSION; sha256 = $sha; sig = $sig } | ConvertTo-Json | Set-Content out/update.json -Encoding utf8NoBOM
+          Get-Content out/update.json
+
       - name: Portable zip
         shell: pwsh
         run: Compress-Archive -Path publish/* -DestinationPath "out/SiberiaConnect-Portable-$env:APP_VERSION.zip"

@@ -85,7 +85,8 @@ public sealed class MainForm : Form
 
         if (Core.HasSub && (connectNow || (autostart && Core.State.AutoStart)))
             Task.Run(Core.Connect);
-        if (Elevation.IsAdmin && Core.State.AutoStart) AutoStart.Set(true, Core.State.TunMode);
+        // после обновления автозапуск мог быть снят старой версией — возвращаем
+        if (Core.State.AutoStart && (Elevation.IsAdmin || !Core.State.TunMode)) AutoStart.Set(true, Core.State.TunMode);
     }
 
     // ───────────────────────── Окно ─────────────────────────
@@ -401,6 +402,22 @@ public sealed class MainForm : Form
                 try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.Logs}\"") { UseShellExecute = true }); } catch { }
                 Emit(new JsonObject { ["type"] = "toast", ["text"] = "Открыл папку с журналом — отправь файлы в поддержку, если попросят" });
                 break;
+            case "installUpdate":
+            {
+                var reconnect = Core.Running;
+                Task.Run(async () =>
+                {
+                    var err = await Updater.Install(reconnect,
+                        p => Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "download", ["pct"] = p })));
+                    Ui(() =>
+                    {
+                        if (err != null) { Emit(new JsonObject { ["type"] = "update", ["stage"] = "error", ["text"] = err }); return; }
+                        Emit(new JsonObject { ["type"] = "update", ["stage"] = "install" });
+                        ExitApp();   // установщик заменит файлы и сам запустит новую версию
+                    });
+                });
+                break;
+            }
             case "reload":
                 try { _web.CoreWebView2.Navigate(Home); } catch { }
                 break;

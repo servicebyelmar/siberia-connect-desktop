@@ -25,6 +25,7 @@
     tunActive: function () { return !!S.tunActive; },
     setTunMode: function (on) { S.tun = !!on; send('tunMode', [!!on]); },
     setAutoStart: function (on) { S.autoStart = !!on; send('autoStart', [!!on]); },
-    advanced: function () { send('advanced'); }
+    advanced: function () { send('advanced'); },
+    installUpdate: function () { send('installUpdate'); }
   };
 })();

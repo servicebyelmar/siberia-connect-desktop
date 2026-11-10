@@ -10,7 +10,7 @@ internal static class Program
     {
         if (args.Contains("--cleanup"))
         {
-            Cleanup.Run();
+            Cleanup.Run(args.Contains("--update"));
             return;
         }
         if (args.Length >= 2 && args[0] == "--selftest")
@@ -70,7 +70,7 @@ internal static class Program
 /// <summary>Удаление/обновление: остановить VPN, вернуть настройки прокси, убрать автозапуск.</summary>
 internal static class Cleanup
 {
-    public static void Run()
+    public static void Run(bool update = false)
     {
         try
         {
@@ -82,7 +82,7 @@ internal static class Cleanup
             VpnCore.KillOrphans();
             var st = AppState.Load();
             SysProxy.Restore(st);
-            AutoStart.Set(false);
+            if (!update) AutoStart.Set(false);   // при обновлении автозапуск оставляем
             Log.Write("Cleanup done");
         }
         catch (Exception ex) { Log.Write("Cleanup error: " + ex.Message); }

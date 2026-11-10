@@ -5,7 +5,28 @@
   function send(cmd, args) {
     try { window.chrome.webview.postMessage(JSON.stringify({ cmd: cmd, args: args || [] })); } catch (e) {}
   }
-  window.__scSnap = function (s) { if (!s) return; for (var k in s) S[k] = s[k]; };
+  /* 1.1.0: стекло Windows 11. Страница получает html.sc-glass и data-sc-backdrop="mica|acrylic|off";
+     фон делаем прозрачным с фирменным синим оттенком — под ним Mica/Acrylic окна. */
+  var GLASS_CSS = 'html.sc-glass{background:transparent!important}' +
+    'html.sc-glass body{background:rgba(6,15,42,var(--sc-glass-tint,.62))!important}' +
+    'html.sc-glass[data-sc-backdrop="acrylic"] body{--sc-glass-tint:.5}';
+  function glass() {
+    try {
+      var d = document.documentElement;
+      if (!d) return;
+      if (!document.getElementById('sc-glass-css')) {
+        var st = document.createElement('style');
+        st.id = 'sc-glass-css';
+        st.textContent = GLASS_CSS;
+        (document.head || d).appendChild(st);
+      }
+      d.classList.toggle('sc-glass', !!S.glass);
+      d.setAttribute('data-sc-backdrop', S.glass ? (S.backdrop || 'mica') : 'off');
+    } catch (e) {}
+  }
+  glass();
+  document.addEventListener('DOMContentLoaded', glass);
+  window.__scSnap = function (s) { if (!s) return; for (var k in s) S[k] = s[k]; if ('glass' in s) glass(); };
   window.SCNative = {
     platform: 'windows',
     version: function () { return S.version || ''; },
@@ -26,6 +47,13 @@
     setTunMode: function (on) { S.tun = !!on; send('tunMode', [!!on]); },
     setAutoStart: function (on) { S.autoStart = !!on; send('autoStart', [!!on]); },
     advanced: function () { send('advanced'); },
-    installUpdate: function () { send('installUpdate'); }
+    installUpdate: function () { send('installUpdate'); },
+    /* 1.1.0 */
+    backdrop: function () { return S.backdrop || 'mica'; },          // mica | acrylic | off
+    backdropSupported: function () { return !!S.backdropSupported; },
+    glass: function () { return !!S.glass; },
+    setBackdrop: function (m) { S.backdrop = String(m || 'mica'); send('backdrop', [S.backdrop]); },
+    backupSave: function () { send('backupSave'); },
+    backupRestore: function () { send('backupRestore'); }
   };
 })();

@@ -61,6 +61,8 @@ internal static class Paths
     public static readonly string Logs = Path.Combine(Data, "logs");
     public static readonly string StateFile = Path.Combine(Data, "state.json");      // старый формат (до 1.0.1)
     public static readonly string StateDat = Path.Combine(Data, "state.dat");        // зашифрован DPAPI
+    public static readonly string StateBak = Path.Combine(Data, "state.bak");        // 1.1.0: запасная копия state.dat (тоже DPAPI)
+    public static readonly string Session = Path.Combine(Data, "session.lock");      // 1.1.0: «VPN включён» — для сторожа
     public static readonly string CoreConfig = Path.Combine(Data, "core-config.json");
     public static readonly string WebData = Path.Combine(Data, "WebView2");
     public static readonly string AppDir = AppContext.BaseDirectory;
@@ -124,6 +126,7 @@ public sealed class AppState
     public DateTime LastUpdate { get; set; }
     public bool AutoStart { get; set; }
     public bool TunMode { get; set; }   // 1.0.2: «Весь компьютер»
+    public string Backdrop { get; set; } = WindowFx.Mica;   // 1.1.0: mica | acrylic | off
 
     // Настройки прокси Windows до включения VPN (чтобы вернуть как было)
     public bool ProxySaved { get; set; }
@@ -140,15 +143,29 @@ public sealed class AppState
 
     public static AppState Load()
     {
+        // 1.1.0: основной файл, а если он повреждён или пропал — запасная копия
+        foreach (var (path, isBak) in new[] { (Paths.StateDat, false), (Paths.StateBak, true) })
+        {
+            try
+            {
+                if (!File.Exists(path)) continue;
+                var raw = ProtectedData.Unprotect(File.ReadAllBytes(path), Entropy, DataProtectionScope.CurrentUser);
+                var st = JsonSerializer.Deserialize<AppState>(Encoding.UTF8.GetString(raw), Opts);
+                if (st == null) continue;
+                st.Servers ??= new List<ServerItem>();
+                st.Backdrop = WindowFx.Normalize(st.Backdrop);
+                if (isBak)
+                {
+                    Log.Write("state: state.dat повреждён или пропал — настройки восстановлены из state.bak");
+                    st.Save();
+                }
+                return st;
+            }
+            catch (Exception ex) { Log.Write($"state load ({Path.GetFileName(path)}): {ex.Message}"); }
+        }
         try
         {
-            if (File.Exists(Paths.StateDat))
-            {
-                var raw = ProtectedData.Unprotect(File.ReadAllBytes(Paths.StateDat), Entropy, DataProtectionScope.CurrentUser);
-                var st = JsonSerializer.Deserialize<AppState>(Encoding.UTF8.GetString(raw), Opts);
-                if (st != null) { st.Servers ??= new List<ServerItem>(); return st; }
-            }
-            else if (File.Exists(Paths.StateFile))
+            if (File.Exists(Paths.StateFile))
             {
                 var st = JsonSerializer.Deserialize<AppState>(File.ReadAllText(Paths.StateFile), Opts);
                 if (st != null)
@@ -175,6 +192,10 @@ public sealed class AppState
                 var tmp = Paths.StateDat + ".tmp";
                 File.WriteAllBytes(tmp, data);
                 File.Move(tmp, Paths.StateDat, true);
+                // 1.1.0: запасная копия только что записанных (заведомо целых) данных
+                var bakTmp = Paths.StateBak + ".tmp";
+                File.WriteAllBytes(bakTmp, data);
+                File.Move(bakTmp, Paths.StateBak, true);
             }
         }
         catch (Exception ex) { Log.Write("state save: " + ex.Message); }

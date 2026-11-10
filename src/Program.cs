@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace SiberiaConnect;
 
 internal static class Program
@@ -11,6 +13,11 @@ internal static class Program
         if (args.Contains("--cleanup"))
         {
             Cleanup.Run(args.Contains("--update"));
+            return;
+        }
+        if (args.Length >= 2 && args[0] == "--guard")
+        {
+            Guard.Run(args[1]);   // 1.1.0: сторож — без окна и без проверки «уже запущено»
             return;
         }
         if (args.Length >= 2 && args[0] == "--selftest")
@@ -116,6 +123,7 @@ internal static class Cleanup
             VpnCore.KillOrphans();
             var st = AppState.Load();
             SysProxy.Restore(st);
+            Session.End();
             if (!update) AutoStart.Set(false);   // при обновлении автозапуск оставляем
             Log.Write("Cleanup done");
         }
@@ -141,5 +149,22 @@ internal static class SelfTest
         File.WriteAllText(Path.Combine(dir, "xray-xhttp.json"), XrayConfig.Build(xhttp, 20808, 20809, true));
         File.WriteAllText(Path.Combine(dir, "xray-tun.json"), XrayConfig.Build(reality, 20808, 20809, true, true));
         File.WriteAllText(Path.Combine(dir, "tun.json"), TunConfigBuilder.Build(20808, new[] { "203.0.113.7/32" }));
+
+        // 1.1.0: резервная копия — шифруется, расшифровывается верным паролем и не открывается неверным
+        var st = new AppState { SubUrl = "https://sibirapp.duckdns.org/sub/selftest", Selected = "g1", TunMode = true, Backdrop = WindowFx.Acrylic };
+        st.Servers.Add(new ServerItem { Guid = "g1", Name = "Тест", Uri = reality });
+        var box = Backup.Seal(Backup.ToJson(st), "снежинка-123");
+        var back = Backup.FromJson(Backup.Open(box, "снежинка-123"));
+        if (back.SubUrl != st.SubUrl || back.Selected != "g1" || back.Servers.Count != 1 || back.Servers[0].Uri != reality
+            || !back.TunMode || back.Backdrop != WindowFx.Acrylic)
+            throw new Exception("backup: данные не совпали после расшифровки");
+        var rejected = false;
+        try { Backup.Open(box, "не-тот-пароль"); } catch (CryptographicException) { rejected = true; }
+        if (!rejected) throw new Exception("backup: неверный пароль не отклонён");
+        box[box.Length - 1] ^= 1;
+        rejected = false;
+        try { Backup.Open(box, "снежинка-123"); } catch (CryptographicException) { rejected = true; }
+        if (!rejected) throw new Exception("backup: испорченный файл не отклонён");
+        File.WriteAllText(Path.Combine(dir, "backup-ok.txt"), "ok");
     }
 }

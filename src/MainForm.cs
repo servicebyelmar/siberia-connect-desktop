@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -27,9 +27,7 @@ public sealed class MainForm : Form
     private bool _ready;
     private bool _webStarted;
     private bool _trayHint;
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    private bool _glass;   // 1.1.0: Mica/Acrylic включён
 
     private readonly Panel _splash;
 
@@ -43,14 +41,14 @@ public sealed class MainForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         Text = "Siberia Connect";
         Icon = _iconOn;
-        BackColor = Color.FromArgb(6, 15, 42);
+        BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1040, 680);
         MinimumSize = new Size(760, 560);
-        _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(6, 15, 42) };
+        _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
         // 1.0.2: фирменная заставка на доли секунды, пока поднимается интерфейс
-        _splash = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(6, 15, 42) };
+        _splash = new Panel { Dock = DockStyle.Fill, BackColor = WindowFx.Brand };
         var logo = new PictureBox { Size = new Size(120, 120), SizeMode = PictureBoxSizeMode.Zoom, Image = AppInfo.LoadBitmap(), BackColor = Color.Transparent };
         var title = new Label { Text = "Siberia Connect", AutoSize = true, ForeColor = Color.White, BackColor = Color.Transparent,
             Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold) };
@@ -128,16 +126,136 @@ public sealed class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        try
+        ApplyBackdrop();
+    }
+
+    // ───────────────────────── 1.1.0: стекло Windows 11 ─────────────────────────
+
+    private void ApplyBackdrop()
+    {
+        if (!IsHandleCreated) return;
+        _glass = WindowFx.Apply(Handle, Core?.State.Backdrop);
+        // чёрный фон формы под расширенной рамкой DWM = прозрачный → видно Mica/Acrylic
+        BackColor = _glass ? Color.Black : WindowFx.Brand;
+        try { _web.DefaultBackgroundColor = _glass ? Color.Transparent : WindowFx.Brand; }
+        catch (Exception ex) { Log.Write("web background: " + ex.Message); }
+        Invalidate(true);
+    }
+
+    private void SetBackdrop(string mode)
+    {
+        Core.State.Backdrop = WindowFx.Normalize(mode);
+        Core.State.Save();
+        ApplyBackdrop();
+        PushSnapshot();
+        Log.Write("backdrop: " + Core.State.Backdrop + (_glass ? " (включён)" : " (не поддерживается — обычное окно)"));
+    }
+
+    // ───────────────────────── 1.1.0: зашифрованная копия настроек ─────────────────────────
+
+    private void Notify(string text, bool error = false)
+    {
+        if (_ready && Visible) Emit(new JsonObject { ["type"] = "toast", ["text"] = text });
+        else _tray.ShowBalloonTip(4000, "Siberia Connect", text, error ? ToolTipIcon.Warning : ToolTipIcon.None);
+    }
+
+    private void BackupSave()
+    {
+        ShowFromTray();
+        if (!Core.HasSub)
         {
-            int on = 1;
-            DwmSetWindowAttribute(Handle, 20, ref on, 4);          // тёмный заголовок
-            int caption = 0x003D1A08;                              // #081A3D
-            DwmSetWindowAttribute(Handle, 35, ref caption, 4);
-            int text = 0x00FFFFFF;
-            DwmSetWindowAttribute(Handle, 36, ref text, 4);
+            MessageBox.Show(this, "Сохранять пока нечего — сначала войди в Siberia Connect.", "Резервная копия",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
         }
-        catch { }
+        string path;
+        using (var dlg = new SaveFileDialog
+        {
+            Title = "Сохранить копию настроек Siberia Connect",
+            Filter = Backup.Filter,
+            DefaultExt = Backup.Ext,
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = $"SiberiaConnect-{DateTime.Now:yyyy-MM-dd}.{Backup.Ext}",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+        })
+        {
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            path = dlg.FileName;
+        }
+        string pass;
+        using (var pw = new PasswordDialog("Пароль для копии",
+                   "Придумай пароль. Копия зашифрована: без пароля её не открыть. Мы пароль не храним и не сможем подсказать.", true))
+        {
+            if (pw.ShowDialog(this) != DialogResult.OK) return;
+            pass = pw.Password;
+        }
+        var json = Backup.ToJson(Core.State);
+        Task.Run(() =>
+        {
+            try
+            {
+                var bytes = Backup.Seal(json, pass);
+                var tmp = path + ".tmp";
+                File.WriteAllBytes(tmp, bytes);
+                File.Move(tmp, path, true);
+                Log.Write("backup: копия сохранена");
+                Ui(() => Notify("✅ Копия сохранена: " + Path.GetFileName(path)));
+            }
+            catch (Exception ex)
+            {
+                Log.Write("backup save: " + ex.Message);
+                Ui(() => Notify("Не удалось сохранить копию: " + ex.Message, true));
+            }
+        });
+    }
+
+    private void BackupRestore()
+    {
+        ShowFromTray();
+        byte[] data;
+        using (var dlg = new OpenFileDialog
+        {
+            Title = "Восстановить настройки Siberia Connect",
+            Filter = Backup.Filter,
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+        })
+        {
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                if (new FileInfo(dlg.FileName).Length > 4_000_000) throw new InvalidDataException("Это не резервная копия Siberia Connect");
+                data = File.ReadAllBytes(dlg.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Резервная копия", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+        }
+        string pass;
+        using (var pw = new PasswordDialog("Восстановление из копии", "Введи пароль, который задавал при сохранении копии.", false))
+        {
+            if (pw.ShowDialog(this) != DialogResult.OK) return;
+            pass = pw.Password;
+        }
+        Task.Run(() =>
+        {
+            Backup.Data d;
+            try { d = Backup.FromJson(Backup.Open(data, pass)); }
+            catch (CryptographicException) { Ui(() => Notify("Неверный пароль или файл копии повреждён", true)); return; }
+            catch (Exception ex) { Ui(() => Notify(ex.Message, true)); return; }
+            var r = Core.RestoreBackup(d);
+            var fresh = r["ok"]?.GetValue<bool>() == true;
+            Ui(() =>
+            {
+                AutoStart.Set(Core.State.AutoStart, Core.State.TunMode);
+                ApplyBackdrop();
+                PushSnapshot();
+                Notify(fresh ? "✅ Настройки восстановлены, список серверов обновлён"
+                             : "✅ Настройки восстановлены. Список серверов обновится, когда появится связь");
+            });
+        });
     }
 
     protected override void OnShown(EventArgs e)
@@ -228,6 +346,35 @@ public sealed class MainForm : Form
             if (Core.Running) Core.Disconnect(); else Core.Connect();
         }));
         menu.Items.Add(_miToggle);
+        menu.Items.Add(new ToolStripSeparator());
+
+        // 1.1.0: оформление окна (только Windows 11 22H2+)
+        var fx = new ToolStripMenuItem("Оформление окна") { Visible = WindowFx.Supported };
+        foreach (var (id, title) in new[]
+                 {
+                     (WindowFx.Mica, "Mica — матовое стекло"),
+                     (WindowFx.Acrylic, "Acrylic — прозрачное стекло"),
+                     (WindowFx.Off, "Без эффекта")
+                 })
+        {
+            var item = new ToolStripMenuItem(title) { Tag = id };
+            item.Click += (_, _) => SetBackdrop(id);
+            fx.DropDownItems.Add(item);
+        }
+        fx.DropDownOpening += (_, _) =>
+        {
+            var cur = WindowFx.Normalize(Core.State.Backdrop);
+            foreach (ToolStripItem i in fx.DropDownItems)
+                if (i is ToolStripMenuItem m) m.Checked = (string)m.Tag == cur;
+        };
+        menu.Items.Add(fx);
+
+        // 1.1.0: зашифрованная резервная копия настроек
+        var bk = new ToolStripMenuItem("Резервная копия");
+        bk.DropDownItems.Add("Сохранить копию настроек…", null, (_, _) => BackupSave());
+        bk.DropDownItems.Add("Восстановить из копии…", null, (_, _) => BackupRestore());
+        menu.Items.Add(bk);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Выход", null, (_, _) => ExitApp());
         menu.Opening += (_, _) =>
@@ -443,6 +590,15 @@ public sealed class MainForm : Form
                 });
                 break;
             }
+            case "backdrop":        // 1.1.0
+                SetBackdrop(A(0));
+                break;
+            case "backupSave":      // 1.1.0
+                BeginInvoke(new Action(BackupSave));
+                break;
+            case "backupRestore":   // 1.1.0
+                BeginInvoke(new Action(BackupRestore));
+                break;
             case "reload":
                 try { _web.CoreWebView2.Navigate(Home); } catch { }
                 break;
@@ -475,6 +631,9 @@ public sealed class MainForm : Form
             ["tun"] = Core.State.TunMode,
             ["tunActive"] = Core.TunActive,
             ["admin"] = Elevation.IsAdmin,
+            ["glass"] = _glass,
+            ["backdrop"] = WindowFx.Normalize(Core.State.Backdrop),
+            ["backdropSupported"] = WindowFx.Supported,
             ["stats"] = StatsJson()
         };
     }

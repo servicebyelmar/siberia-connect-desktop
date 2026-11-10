@@ -54,6 +54,8 @@ public sealed class VpnCore
         DeviceId = Device.Id();
         KillOrphans();
         if (State.ProxySaved) SysProxy.Restore(State); // после сбоя/выключения ПК — вернуть интернет
+        Session.End();                                 // 1.1.0: метка от прошлого запуска больше не нужна
+        Recovery.Sweep();                              // 1.1.0: забытый адаптер «Весь компьютер»
     }
 
     public bool HasSub => State.Servers.Count > 0;
@@ -207,6 +209,8 @@ public sealed class VpnCore
                 else SysProxy.Enable($"127.0.0.1:{_httpPort}", State);
                 Running = true;
                 Since = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Session.Begin(TunActive);   // 1.1.0: при аварийном выходе сторож вернёт интернет
+                Guard.Ensure();
                 Fire("on");
                 Log.Write($"connected: {srv.Name}");
             }
@@ -227,6 +231,7 @@ public sealed class VpnCore
             StopTun();
             StopProc();
             SysProxy.Restore(State);
+            Session.End();
             Running = false;
             Since = 0;
             Fire("off");
@@ -261,9 +266,32 @@ public sealed class VpnCore
             try { if (_tun != null && !_tun.HasExited) _tun.Kill(true); } catch { }
             try { if (_proc != null && !_proc.HasExited) _proc.Kill(true); } catch { }
             SysProxy.Restore(State);
+            Session.End();
             Running = false;
         }
         catch { }
+    }
+
+    /// <summary>1.1.0: восстановление из зашифрованной копии. Потом список серверов обновляется с сервера.</summary>
+    public JsonObject RestoreBackup(Backup.Data d)
+    {
+        var was = Running;
+        if (was) Disconnect();
+        lock (_gate)
+        {
+            State.SubUrl = d.SubUrl;
+            State.Servers = d.Servers;
+            State.Selected = d.Servers.Any(s => s.Guid == d.Selected) ? d.Selected : d.Servers.FirstOrDefault()?.Guid ?? "";
+            State.AutoStart = d.AutoStart;
+            State.TunMode = d.TunMode;
+            State.Backdrop = WindowFx.Normalize(d.Backdrop);
+            State.LastUpdate = DateTime.MinValue;
+            State.Save();
+        }
+        Log.Write($"backup: восстановлено ({d.Servers.Count} серверов в копии)");
+        var r = UpdateSub(State.SubUrl);   // нет связи — останутся серверы из копии
+        if (was && HasSub) Connect();
+        return r;
     }
 
     private string StartCore(ServerItem srv, bool useGeo)
@@ -303,6 +331,7 @@ public sealed class VpnCore
         p.ErrorDataReceived += h;
         _stopping = false;
         p.Start();
+        CoreJob.Add(p);   // 1.1.0: ядро не переживёт приложение
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
 
@@ -346,6 +375,7 @@ public sealed class VpnCore
             StopTun();
             StopProc();
             SysProxy.Restore(State);
+            Session.End();
             Running = false;
             Since = 0;
         }
@@ -372,19 +402,37 @@ public sealed class VpnCore
 
     public static void KillOrphans()
     {
-        foreach (var (name, path) in new[] { ("xray", Paths.Xray), ("sing-box", Paths.SingBox) })
+        foreach (var path in new[] { Paths.Xray, Paths.SingBox })
+            foreach (var p in OurProcesses(path))
+                try { using (p) p.Kill(true); } catch { }
+    }
+
+    /// <summary>1.1.0: запущен ли наш xray/sing-box (из папки приложения, а не чужой).</summary>
+    public static bool OurCoreRunning(string path)
+    {
+        var any = false;
+        foreach (var p in OurProcesses(path)) { any = true; p.Dispose(); }
+        return any;
+    }
+
+    private static List<Process> OurProcesses(string path)
+    {
+        var list = new List<Process>();
+        foreach (var p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(path)))
         {
-            foreach (var p in Process.GetProcessesByName(name))
+            try
             {
-                try
+                var f = p.MainModule?.FileName;
+                if (f != null && string.Equals(Path.GetFullPath(f), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
                 {
-                    var f = p.MainModule?.FileName;
-                    if (f != null && string.Equals(Path.GetFullPath(f), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
-                        p.Kill(true);
+                    list.Add(p);
+                    continue;
                 }
-                catch { }
             }
+            catch { }
+            p.Dispose();
         }
+        return list;
     }
 
     // ───────────────────────── «Весь компьютер» (TUN) ─────────────────────────
@@ -395,6 +443,7 @@ public sealed class VpnCore
     {
         if (!File.Exists(Paths.SingBox)) return "Не найден компонент «Весь компьютер». Переустанови Siberia Connect";
         StopTun();
+        Recovery.Sweep();   // 1.1.0: адаптер, оставшийся после сбоя, мешал бы новому
         Log.Write("tun: мимо адаптера " + (serverIps.Length > 0 ? string.Join(", ", serverIps) : "— (адрес сервера не определён)"));
         try { File.WriteAllText(Paths.TunConfig, TunConfigBuilder.Build(_socksPort, serverIps), new UTF8Encoding(false)); }
         catch (Exception ex) { return "Не удалось подготовить режим «Весь компьютер»: " + ex.Message; }
@@ -415,6 +464,7 @@ public sealed class VpnCore
         p.ErrorDataReceived += h;
         _stopping = false;
         p.Start();
+        CoreJob.Add(p);   // 1.1.0: упало приложение → sing-box завершится, Windows уберёт адаптер и маршруты
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
         var sw = Stopwatch.StartNew();
@@ -449,7 +499,7 @@ public sealed class VpnCore
         try
         {
             return NetworkInterface.GetAllNetworkInterfaces().Any(n =>
-                n.Name.Equals(TunConfigBuilder.InterfaceName, StringComparison.OrdinalIgnoreCase) &&
+                n.Name.StartsWith(TunConfigBuilder.InterfaceName, StringComparison.OrdinalIgnoreCase) &&
                 n.OperationalStatus == OperationalStatus.Up);
         }
         catch { return false; }

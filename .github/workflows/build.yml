@@ -58,7 +58,7 @@ jobs:
           Get-ChildItem selftest
           if (Test-Path selftest/error.txt) { Get-Content selftest/error.txt; throw "самопроверка упала — текст ошибки выше" }
           $env:XRAY_LOCATION_ASSET = "$PWD/publish/core"
-          foreach ($f in 'xray-reality.json', 'xray-xhttp.json') {
+          foreach ($f in 'xray-reality.json', 'xray-xhttp.json', 'xray-tun.json') {
             & publish/core/xray.exe run -test -c "selftest/$f"
             if ($LASTEXITCODE -ne 0) { throw "xray отверг $f" }
           }

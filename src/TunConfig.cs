@@ -38,7 +38,7 @@ internal static class TunConfigBuilder
             ["type"] = "tun",
             ["tag"] = "tun-in",
             ["interface_name"] = InterfaceName,
-            ["address"] = new JsonArray("172.19.0.1/30"),
+            ["address"] = new JsonArray("172.19.0.1/30", "fdfe:dcba:9876::1/126"),   // IPv6 тоже в туннель — иначе Chrome уходит по IPv6 мимо VPN
             ["mtu"] = 9000,
             ["auto_route"] = true,
             ["strict_route"] = false,      // не ломаем обнаружение принтеров и устройств в локальной сети
@@ -78,7 +78,7 @@ internal static class TunConfigBuilder
                     new JsonObject { ["process_name"] = new JsonArray("xray.exe", "SiberiaConnect.exe", "sing-box.exe"), ["outbound"] = "direct" },
                     new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" },
                     // QUIC (UDP 443) отклоняем: браузер и YouTube сразу переходят на TCP — через VLESS это быстрее и стабильнее
-                    new JsonObject { ["network"] = "udp", ["port"] = 443, ["action"] = "reject" },
+                    new JsonObject { ["network"] = "udp", ["port"] = 443, ["action"] = "reject", ["no_drop"] = true },
                     new JsonObject { ["ip_is_private"] = true, ["outbound"] = "direct" },
                     new JsonObject { ["ip_cidr"] = new JsonArray("224.0.0.0/4", "255.255.255.255/32"), ["outbound"] = "direct" }),
                 ["final"] = "proxy"

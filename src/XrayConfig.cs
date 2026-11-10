@@ -20,7 +20,7 @@ internal static class XrayConfig
         "domain:max.ru", "domain:oneme.ru", "domain:rustore.ru", "domain:hh.ru", "domain:rzd.ru", "domain:tutu.ru"
     };
 
-    public static string Build(string link, int socksPort, int httpPort, bool useGeo)
+    public static string Build(string link, int socksPort, int httpPort, bool useGeo, bool tun = false)
     {
         var proxy = Outbound(link);
         var sniff = new JsonObject
@@ -67,7 +67,8 @@ internal static class XrayConfig
                 new JsonObject { ["tag"] = "block", ["protocol"] = "blackhole" }),
             ["routing"] = new JsonObject
             {
-                ["domainStrategy"] = useGeo ? "IPIfNonMatch" : "AsIs",
+                // в режиме «Весь компьютер» решаем по имени сайта, без DNS-запросов к провайдеру (он может вернуть замедленный российский кэш Google)
+                ["domainStrategy"] = useGeo && !tun ? "IPIfNonMatch" : "AsIs",
                 ["rules"] = rules
             }
         };

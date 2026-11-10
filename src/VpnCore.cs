@@ -274,7 +274,7 @@ public sealed class VpnCore
         _socksPort = socks;
         _httpPort = FreePort(socks + 1);
         string cfg;
-        try { cfg = XrayConfig.Build(srv.Uri, socks, _httpPort, useGeo); }
+        try { cfg = XrayConfig.Build(srv.Uri, socks, _httpPort, useGeo, State.TunMode && Elevation.IsAdmin); }
         catch (Exception ex) { return "Неверные данные сервера: " + ex.Message; }
         File.WriteAllText(Paths.CoreConfig, cfg, new UTF8Encoding(false));
 

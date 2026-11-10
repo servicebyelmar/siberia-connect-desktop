@@ -201,7 +201,7 @@ public sealed class VpnCore
                 if (err != null) { FireError(err); return; }
                 if (State.TunMode && Elevation.IsAdmin)
                 {
-                    var terr = StartTun();
+                    var terr = StartTun(TunConfigBuilder.ServerIps(srv.Uri));
                     if (terr != null) { StopProc(); FireError(terr); return; }
                 }
                 else SysProxy.Enable($"127.0.0.1:{_httpPort}", State);
@@ -391,11 +391,12 @@ public sealed class VpnCore
     // sing-box поднимает виртуальный адаптер (wintun) и отдаёт весь трафик в локальный SOCKS Xray.
     // Трафик самого Xray и локальная сеть (принтеры, роутер) идут мимо адаптера.
 
-    private string StartTun()
+    private string StartTun(string[] serverIps)
     {
         if (!File.Exists(Paths.SingBox)) return "Не найден компонент «Весь компьютер». Переустанови Siberia Connect";
         StopTun();
-        try { File.WriteAllText(Paths.TunConfig, TunConfigBuilder.Build(_socksPort), new UTF8Encoding(false)); }
+        Log.Write("tun: мимо адаптера " + (serverIps.Length > 0 ? string.Join(", ", serverIps) : "— (адрес сервера не определён)"));
+        try { File.WriteAllText(Paths.TunConfig, TunConfigBuilder.Build(_socksPort, serverIps), new UTF8Encoding(false)); }
         catch (Exception ex) { return "Не удалось подготовить режим «Весь компьютер»: " + ex.Message; }
         var psi = new ProcessStartInfo(Paths.SingBox, $"run -c \"{Paths.TunConfig}\" -D \"{Paths.Data}\" --disable-color")
         {

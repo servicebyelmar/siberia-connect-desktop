@@ -99,6 +99,6 @@ internal static class SelfTest
         const string xhttp = "vless://11111111-2222-3333-4444-555555555555@example.com:8443?type=xhttp&security=reality&pbk=Z84J2IelR9ch3k8VtlVhhs5ycBUlXA7wHBWcBrjqnAw&fp=safari&sni=www.example.com&sid=6ba85179e30d4fc2&path=%2Fsc&mode=auto#Test%20XHTTP";
         File.WriteAllText(Path.Combine(dir, "xray-reality.json"), XrayConfig.Build(reality, 20808, 20809, true));
         File.WriteAllText(Path.Combine(dir, "xray-xhttp.json"), XrayConfig.Build(xhttp, 20808, 20809, true));
-        File.WriteAllText(Path.Combine(dir, "tun.json"), TunConfigBuilder.Build(20808));
+        File.WriteAllText(Path.Combine(dir, "tun.json"), TunConfigBuilder.Build(20808, new[] { "203.0.113.7/32" }));
     }
 }

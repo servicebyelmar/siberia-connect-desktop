@@ -19,6 +19,9 @@ internal static class Program
             return;
         }
 
+        var link = args.FirstOrDefault(a => a.StartsWith("siberiaconnect:", StringComparison.OrdinalIgnoreCase));
+        if (link != null) DeepLink.Save(link);
+
         using var mutex = new Mutex(true, MutexName, out bool first);
         if (!first && args.Contains("--takeover"))
         {
@@ -64,6 +67,37 @@ internal static class Program
 
         Application.Run(form);
         GC.KeepAlive(mutex);
+    }
+}
+
+/// <summary>link_v1: вход по ссылке из бота. Код кладём в файл — его подхватит уже запущенное приложение
+/// (в том числе запущенное с правами администратора, куда обычный сигнал не дойдёт).</summary>
+internal static class DeepLink
+{
+    public static void Save(string link)
+    {
+        try
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(link, @"[?&]c=([A-Za-z0-9_-]{8,64})");
+            if (!m.Success) return;
+            Directory.CreateDirectory(Paths.Data);
+            var tmp = Paths.PendingLogin + ".tmp";
+            File.WriteAllText(tmp, m.Groups[1].Value);
+            File.Move(tmp, Paths.PendingLogin, true);
+        }
+        catch (Exception ex) { Log.Write("deeplink: " + ex.Message); }
+    }
+
+    public static string Take()
+    {
+        try
+        {
+            if (!File.Exists(Paths.PendingLogin)) return null;
+            var c = File.ReadAllText(Paths.PendingLogin).Trim();
+            File.Delete(Paths.PendingLogin);
+            return System.Text.RegularExpressions.Regex.IsMatch(c, "^[A-Za-z0-9_-]{8,64}$") ? c : null;
+        }
+        catch { return null; }
     }
 }
 

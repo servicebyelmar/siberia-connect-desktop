@@ -48,6 +48,12 @@ Source: "..\deps\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: delet
 Name: "{userprograms}\Siberia Connect"; Filename: "{app}\SiberiaConnect.exe"
 Name: "{userdesktop}\Siberia Connect"; Filename: "{app}\SiberiaConnect.exe"; Tasks: desktopicon
 
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\siberiaconnect"; ValueType: string; ValueName: ""; ValueData: "URL:Siberia Connect"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\siberiaconnect"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\siberiaconnect\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\SiberiaConnect.exe,0"
+Root: HKCU; Subkey: "Software\Classes\siberiaconnect\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\SiberiaConnect.exe"" ""%1"""
+
 [Run]
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Устанавливаю компонент Microsoft WebView2…"; Check: NeedsWebView2; Flags: waituntilterminated
 Filename: "{app}\SiberiaConnect.exe"; Description: "Запустить Siberia Connect"; Flags: nowait postinstall skipifsilent

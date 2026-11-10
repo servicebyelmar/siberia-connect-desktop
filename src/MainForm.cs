@@ -87,6 +87,30 @@ public sealed class MainForm : Form
             Task.Run(Core.Connect);
         // после обновления автозапуск мог быть снят старой версией — возвращаем
         if (Core.State.AutoStart && (Elevation.IsAdmin || !Core.State.TunMode)) AutoStart.Set(true, Core.State.TunMode);
+
+        // link_v1: нажали «Открыть Siberia Connect» на странице входа, а приложение уже запущено
+        try
+        {
+            Directory.CreateDirectory(Paths.Data);
+            _dlWatch = new FileSystemWatcher(Paths.Data, Path.GetFileName(Paths.PendingLogin))
+                { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite };
+            FileSystemEventHandler h = (_, _) => { try { BeginInvoke(new Action(OpenPendingLogin)); } catch { } };
+            _dlWatch.Created += h;
+            _dlWatch.Changed += h;
+            _dlWatch.Renamed += (_, _) => { try { BeginInvoke(new Action(OpenPendingLogin)); } catch { } };
+            _dlWatch.EnableRaisingEvents = true;
+        }
+        catch (Exception ex) { Log.Write("deeplink watch: " + ex.Message); }
+    }
+
+    private FileSystemWatcher _dlWatch;
+
+    private void OpenPendingLogin()
+    {
+        var c = DeepLink.Take();
+        if (c == null) return;
+        ShowFromTray();
+        try { _web.CoreWebView2?.Navigate(Home + "&dl=" + c); } catch { }
     }
 
     // ───────────────────────── Окно ─────────────────────────
@@ -275,7 +299,8 @@ public sealed class MainForm : Form
             try { cw.Reload(); } catch { }
         };
         _ready = true;
-        cw.Navigate(Home);
+        var dl = DeepLink.Take();
+        cw.Navigate(dl != null ? Home + "&dl=" + dl : Home);
     }
 
     private string BridgeScript()

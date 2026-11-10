@@ -68,6 +68,7 @@ internal static class Paths
     public static readonly string Xray = Path.Combine(CoreDir, "xray.exe");
     public static readonly string SingBox = Path.Combine(CoreDir, "sing-box.exe");
     public static readonly string TunConfig = Path.Combine(Data, "tun-config.json");
+    public static readonly string PendingLogin = Path.Combine(Data, "login.pending");   // link_v1: код входа из ссылки бота
 
     static Paths()
     {

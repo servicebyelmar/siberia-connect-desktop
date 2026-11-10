@@ -50,7 +50,7 @@ internal static class TunConfigBuilder
         {
             // туннель до сервера не заходит в адаптер вообще: нет петли и лишнего круга → полная скорость
             var arr = new JsonArray();
-            foreach (var ip in excludeIps) arr.Add(ip);
+            foreach (var ip in excludeIps) arr.Add((JsonNode)ip);   // явное JsonNode: без рефлексии сериализатора
             tun["route_exclude_address"] = arr;
         }
 

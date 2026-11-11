@@ -127,7 +127,9 @@ public sealed partial class VpnCore
     /// <summary>Тихое обновление списка серверов раз в несколько часов.</summary>
     public void RefreshIfDue()
     {
-        if (!HasSub || string.IsNullOrEmpty(State.SubUrl) || Busy) return;
+        if (Busy) return;
+        if (!string.IsNullOrEmpty(State.AuthToken)) { try { CheckStatus(); } catch (Exception ex) { Log.Write("auth: " + ex.Message); } }
+        if (!HasSub || string.IsNullOrEmpty(State.SubUrl)) return;
         if (DateTime.UtcNow - State.LastUpdate < TimeSpan.FromHours(3)) return;
         UpdateSub(State.SubUrl);
     }
@@ -191,11 +193,23 @@ public sealed partial class VpnCore
         {
             if (Running) { Fire("on"); return; }
             var srv = State.Servers.FirstOrDefault(s => s.Guid == State.Selected) ?? State.Servers.FirstOrDefault();
+            var gated = false;
+            if (srv == null && !string.IsNullOrEmpty(State.AuthToken))
+            {
+                // 1.3.0: ключа ещё нет, но есть вход — спрашиваем сервер (выдаст ключ или скажет, почему нельзя)
+                gated = true;
+                var g0 = AccountGate();
+                if (g0 != null) { FireError(g0); return; }
+                srv = State.Servers.FirstOrDefault();
+            }
             if (srv == null) { FireError("Сначала обнови ключ"); return; }
             Busy = true;
             Fire("connecting");
             try
             {
+                var gate = gated ? null : AccountGate();   // 1.3.0: подписка кончилась / нет мест — говорим сразу, без «вечного подключения»
+                if (gate != null) { FireError(gate); return; }
+                srv = State.Servers.FirstOrDefault(s => s.Guid == State.Selected) ?? State.Servers.FirstOrDefault() ?? srv;
                 var auto = State.AutoSelect && State.Servers.Count > 1;
                 if (auto) srv = PickAuto();   // 1.2.0: «Северное Сияние» — реальная проверка всех серверов
                 var err = StartCore(srv, true);
@@ -305,10 +319,12 @@ public sealed partial class VpnCore
             State.TunMode = d.TunMode;
             State.Backdrop = WindowFx.Normalize(d.Backdrop);
             State.AutoSelect = d.AutoSelect;
+            if (!string.IsNullOrEmpty(d.InstallSecret)) { State.InstallSecret = d.InstallSecret; State.AuthToken = ""; State.AutoRegDone = true; }
             State.LastUpdate = DateTime.MinValue;
             State.Save();
         }
         Log.Write($"backup: восстановлено ({d.Servers.Count} серверов в копии)");
+        if (!string.IsNullOrEmpty(State.InstallSecret) && string.IsNullOrEmpty(State.AuthToken)) AutoRegister();
         var r = UpdateSub(State.SubUrl);   // нет связи — останутся серверы из копии
         if (was && HasSub) Connect();
         return r;

@@ -128,6 +128,11 @@ public sealed class AppState
     public bool TunMode { get; set; }   // 1.0.2: «Весь компьютер»
     public string Backdrop { get; set; } = WindowFx.Mica;   // 1.1.0: mica | acrylic | off
     public bool AutoSelect { get; set; } = true;            // 1.2.0: «Северное Сияние (Авто)» — по умолчанию
+    public string InstallSecret { get; set; } = "";         // 1.3.0: секрет установки (вход без Telegram)
+    public string AuthToken { get; set; } = "";             // 1.3.0: общий вход приложения и кабинета
+    public bool AutoRegDone { get; set; }
+    public bool TokenFromInstall { get; set; }              // 1.3.0: вход получен по секрету установки (а не из кабинета)                   // 1.3.0: автовход уже пробовали — повторно не создаём аккаунт
+    public string LoginCode { get; set; } = "";             // 1.3.0: код доступа SC-… (показывается в меню)
 
     // Настройки прокси Windows до включения VPN (чтобы вернуть как было)
     public bool ProxySaved { get; set; }

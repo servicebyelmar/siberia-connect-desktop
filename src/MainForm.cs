@@ -65,6 +65,7 @@ public sealed class MainForm : Form
 
         Core = new VpnCore();
         Core.Changed += ev => Ui(() => OnCoreEvent(ev));
+        Core.TokenChanged += t => Ui(() => PushToken(t));
 
         SetupTray();
         _stats.Tick += (_, _) => PushStats();
@@ -140,6 +141,31 @@ public sealed class MainForm : Form
         try { _web.DefaultBackgroundColor = _glass ? Color.Transparent : WindowFx.Brand; }
         catch (Exception ex) { Log.Write("web background: " + ex.Message); }
         Invalidate(true);
+    }
+
+    // ───────────────────────── 1.3.0: вход и связка с Telegram ─────────────────────────
+
+    private void PushToken(string token)
+    {
+        PushSnapshot();
+        if (string.IsNullOrEmpty(token)) return;
+        var js = System.Text.Json.JsonSerializer.Serialize(token);
+        Exec($"try{{if(localStorage.getItem('sc_tok')!=={js}){{localStorage.setItem('sc_tok',{js});location.reload();}}}}catch(e){{}}");
+    }
+
+    private void LinkTelegram()
+    {
+        Task.Run(() =>
+        {
+            var (code, url, err) = Core.LinkCode();
+            Ui(() =>
+            {
+                if (err != null) { Notify(err, true); return; }
+                if (!string.IsNullOrEmpty(url)) OpenExternal(url);
+                _tray.ShowBalloonTip(8000, "Связать с Telegram",
+                    $"Открыл бота. Если не открылся — отправь ему: /link {code} (код действует 10 минут)", ToolTipIcon.None);
+            });
+        });
     }
 
     /// <summary>1.2.0: включить «Авто» или вернуться к ручному выбору (остаёмся на текущем сервере).</summary>
@@ -355,6 +381,10 @@ public sealed class MainForm : Form
             if (Core.Running) Core.Disconnect(); else Core.Connect();
         }));
         menu.Items.Add(_miToggle);
+        // 1.3.0: связка с Telegram (только для аккаунтов без Telegram)
+        var miLink = new ToolStripMenuItem("🔗 Связать с Telegram…", null, (_, _) => LinkTelegram()) { Visible = false };
+        menu.Items.Add(miLink);
+        menu.Opening += (_, _) => miLink.Visible = Core.Account?["app_only"]?.GetValue<bool>() == true;
         // 1.2.0: автовыбор сервера
         var miAuto = new ToolStripMenuItem("⚡️ Северное Сияние — автовыбор сервера") { CheckOnClick = false };
         miAuto.Click += (_, _) =>
@@ -402,7 +432,7 @@ public sealed class MainForm : Form
         menu.Opening += (_, _) =>
         {
             _miToggle.Text = Core.Running ? "Отключить VPN" : "Подключить VPN";
-            _miToggle.Enabled = Core.HasSub && !Core.Busy;
+            _miToggle.Enabled = (Core.HasSub || !string.IsNullOrEmpty(Core.State.AuthToken)) && !Core.Busy;
         };
         _tray.ContextMenuStrip = menu;
         _tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowFromTray(); };
@@ -444,6 +474,12 @@ public sealed class MainForm : Form
             MessageBox.Show(this, "Не удалось запустить интерфейс: " + ex.Message, "Siberia Connect",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
+        }
+
+        // 1.3.0: первый запуск без ключа — аккаунт создаётся сам, кабинет откроется уже с входом
+        if (Core.NeedsAutoRegister)
+        {
+            try { await Task.Run(Core.AutoRegister); } catch (Exception ex) { Log.Write("auth: " + ex.Message); }
         }
 
         var cw = _web.CoreWebView2;
@@ -612,6 +648,12 @@ public sealed class MainForm : Form
                 });
                 break;
             }
+            case "authToken":       // 1.3.0: кабинет вошёл/вышел
+                Core.AdoptToken(A(0));
+                break;
+            case "linkTelegram":    // 1.3.0
+                BeginInvoke(new Action(LinkTelegram));
+                break;
             case "autoMode":        // 1.2.0
             {
                 var on = A(0) == "true";
@@ -635,6 +677,12 @@ public sealed class MainForm : Form
 
     private void OnCoreEvent(JsonObject ev)
     {
+        if (ev["type"]?.GetValue<string>() == "account")   // 1.3.0: подписка кончилась — сразу к тарифам
+        {
+            if (ev["state"]?.GetValue<string>() == "expired" && Visible) Exec("try{go('plans')}catch(e){}");
+            Emit(ev);
+            return;
+        }
         UpdateTray();
         _stats.Enabled = Core.Running;
         PushSnapshot();
@@ -678,6 +726,8 @@ public sealed class MainForm : Form
             ["tun"] = Core.State.TunMode,
             ["tunActive"] = Core.TunActive,
             ["auto"] = Core.State.AutoSelect,
+            ["appToken"] = Core.State.AuthToken ?? "",
+            ["account"] = Core.Account?["state"]?.GetValue<string>() ?? "",
             ["activeGuid"] = Core.Running ? Core.ActiveGuid : "",
             ["admin"] = Elevation.IsAdmin,
             ["glass"] = _glass,

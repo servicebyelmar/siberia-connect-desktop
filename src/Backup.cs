@@ -28,6 +28,7 @@ internal static class Backup
         public string SubUrl = "", Selected = "", Backdrop = WindowFx.Mica;
         public List<ServerItem> Servers = new();
         public bool AutoStart, TunMode, AutoSelect = true;
+        public string InstallSecret = "";
     }
 
     public static byte[] Seal(string json, string password)
@@ -112,6 +113,7 @@ internal static class Backup
             ["autoStart"] = st.AutoStart,
             ["tunMode"] = st.TunMode,
             ["autoSelect"] = st.AutoSelect,
+            ["installSecret"] = st.InstallSecret ?? "",
             ["backdrop"] = WindowFx.Normalize(st.Backdrop)
         }.ToJsonString();
     }
@@ -131,6 +133,7 @@ internal static class Backup
             AutoStart = B("autoStart"),
             TunMode = B("tunMode"),
             AutoSelect = n?["autoSelect"] == null || B("autoSelect"),
+            InstallSecret = S(n, "installSecret"),
             Backdrop = WindowFx.Normalize(S(n, "backdrop"))
         };
         // замок как у подписки: в приложение попадают только ключи Siberia Connect

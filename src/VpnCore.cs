@@ -292,7 +292,7 @@ public sealed partial class VpnCore
     }
 
     /// <summary>1.1.0: восстановление из зашифрованной копии. Потом список серверов обновляется с сервера.</summary>
-    public JsonObject RestoreBackup(Backup.Data d)
+    internal JsonObject RestoreBackup(Backup.Data d)
     {
         var was = Running;
         if (was) Disconnect();

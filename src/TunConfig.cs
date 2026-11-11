@@ -14,6 +14,7 @@ namespace SiberiaConnect;
 internal static class TunConfigBuilder
 {
     public const string InterfaceName = "Siberia Connect";
+    public const string TunIp4 = "172.30.233.1", TunIp6 = "fdfe:dcba:7233::1";
 
     /// <summary>IPv4-адреса сервера из ссылки vless://…@host:port — их трафик идёт мимо адаптера.</summary>
     public static string[] ServerIps(string link)
@@ -38,7 +39,8 @@ internal static class TunConfigBuilder
             ["type"] = "tun",
             ["tag"] = "tun-in",
             ["interface_name"] = InterfaceName,
-            ["address"] = new JsonArray("172.19.0.1/30", "fdfe:dcba:9876::1/126"),   // IPv6 тоже в туннель — иначе Chrome уходит по IPv6 мимо VPN
+            // 1.3.1: свой редкий адрес — 172.19.0.1 по умолчанию занимают Happ и другие клиенты на sing-box («The object already exists»)
+            ["address"] = new JsonArray(TunIp4 + "/30", TunIp6 + "/126"),   // IPv6 тоже в туннель — иначе Chrome уходит по IPv6 мимо VPN
             ["mtu"] = 9000,
             ["auto_route"] = true,
             ["strict_route"] = false,      // не ломаем обнаружение принтеров и устройств в локальной сети

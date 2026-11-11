@@ -175,6 +175,9 @@ internal static class Recovery
 {
     private const string NetClass = @"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}";
 
+    // адреса нашего адаптера «Весь компьютер» (TunConfig.cs). Чужие VPN-адаптеры (Happ и т. п.) не трогаем.
+    private const string TunIp4 = TunConfigBuilder.TunIp4, TunIp6 = TunConfigBuilder.TunIp6;
+
     public static void Sweep()
     {
         try
@@ -186,10 +189,16 @@ internal static class Recovery
                 .ToList();
             foreach (var n in stale)
             {
-                Log.Write($"recovery: остался адаптер «{n.Name}» ({n.OperationalStatus}) — убираю вместе с маршрутами");
-                if (!RemoveDevice(n.Id))
-                    Run("netsh.exe", $"interface set interface name=\"{n.Name}\" admin=disabled");
+                Log.Write($"recovery: остался адаптер «{n.Name}» ({n.OperationalStatus}) — убираю вместе с адресом и маршрутами");
+                // 1.3.1: сначала снимаем адрес (даже с выключенного адаптера) — иначе «The object already exists»
+                Run("netsh.exe", $"interface ipv4 delete address \"{n.Name}\" {TunIp4}");
+                Run("netsh.exe", $"interface ipv6 delete address \"{n.Name}\" {TunIp6}");
+                RemoveDevice(n.Id);
             }
+            // выключенные и скрытые НАШИ адаптеры в списке выше не видны — убираем их через PowerShell (только «Siberia Connect*»)
+            Run("powershell.exe", "-NoProfile -NonInteractive -Command \"" +
+                "Get-NetAdapter -Name '" + TunConfigBuilder.InterfaceName + "*' -IncludeHidden -ErrorAction SilentlyContinue | " +
+                "Where-Object { $_.Status -ne 'Up' } | ForEach-Object { pnputil /remove-device $_.PnPDeviceID | Out-Null }\"");
         }
         catch (Exception ex) { Log.Write("recovery: " + ex.Message); }
     }

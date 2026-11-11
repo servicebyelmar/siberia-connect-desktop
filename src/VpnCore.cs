@@ -221,7 +221,19 @@ public sealed partial class VpnCore
                 if (err != null) { FireError(err); return; }
                 if (State.TunMode && Elevation.IsAdmin)
                 {
-                    var terr = StartTun(TunConfigBuilder.ServerIps(srv.Uri));
+                    var tunIps = TunConfigBuilder.ServerIps(srv.Uri);
+                    var terr = StartTun(tunIps);
+                    if (terr != null && terr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // 1.3.1: адрес держит старый адаптер — убираем его и пробуем ещё раз
+                        Log.Write("tun: адрес занят старым адаптером — уборка и повтор");
+                        Recovery.Sweep();
+                        Thread.Sleep(800);
+                        terr = StartTun(tunIps);
+                        if (terr != null && terr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                            terr = "Режим «Весь компьютер» не запустился: его адрес занят другим VPN-приложением. " +
+                                   "Закрой другие VPN (например, Happ) и попробуй снова";
+                    }
                     if (terr != null) { StopProc(); FireError(terr); return; }
                 }
                 else SysProxy.Enable($"127.0.0.1:{_httpPort}", State);

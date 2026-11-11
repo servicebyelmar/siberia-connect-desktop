@@ -149,6 +149,9 @@ internal static class SelfTest
         File.WriteAllText(Path.Combine(dir, "xray-xhttp.json"), XrayConfig.Build(xhttp, 20808, 20809, true));
         File.WriteAllText(Path.Combine(dir, "xray-tun.json"), XrayConfig.Build(reality, 20808, 20809, true, true));
         File.WriteAllText(Path.Combine(dir, "tun.json"), TunConfigBuilder.Build(20808, new[] { "203.0.113.7/32" }));
+        File.WriteAllText(Path.Combine(dir, "xray-probe.json"),
+            XrayConfig.BuildProbe(new[] { reality, xhttp }, new[] { 21100, 21101 }, out var probeOk));   // 1.2.0: «Авто»
+        if (!probeOk.All(x => x)) throw new Exception("probe: сервер из подписки не распознан");
 
         // 1.1.0: резервная копия — шифруется, расшифровывается верным паролем и не открывается неверным
         var st = new AppState { SubUrl = "https://sibirapp.duckdns.org/sub/selftest", Selected = "g1", TunMode = true, Backdrop = WindowFx.Acrylic };

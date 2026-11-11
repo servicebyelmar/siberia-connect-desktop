@@ -13,7 +13,7 @@ namespace SiberiaConnect;
 /// VPN-движок: подписка Siberia Connect → серверы → Xray → системный прокси.
 /// Замок: принимается только подписка с наших адресов, других серверов в приложении нет.
 /// </summary>
-public sealed class VpnCore
+public sealed partial class VpnCore
 {
     public static readonly string[] AllowedHosts = { "snezhnet.duckdns.org", "sibirapp.duckdns.org" };
     private const int SocksPortBase = 20808;
@@ -108,7 +108,9 @@ public sealed class VpnCore
                     State.Selected = (list.FirstOrDefault(s => prev != null && s.Name == prev.Name) ?? list[0]).Guid;
                 State.LastUpdate = DateTime.UtcNow;
                 State.Save();
-                restart = Running && prev != null && prev.Guid != State.Selected;
+                restart = Running && (State.AutoSelect
+                    ? !list.Any(s => s.Guid == ActiveGuid)                 // 1.2.0: в «Авто» — только если текущего сервера больше нет
+                    : prev != null && prev.Guid != State.Selected);
             }
             Log.Write($"sub ok: {list.Count} servers");
             if (restart) Task.Run(Reconnect);
@@ -194,6 +196,8 @@ public sealed class VpnCore
             Fire("connecting");
             try
             {
+                var auto = State.AutoSelect && State.Servers.Count > 1;
+                if (auto) srv = PickAuto();   // 1.2.0: «Северное Сияние» — реальная проверка всех серверов
                 var err = StartCore(srv, true);
                 if (err != null)
                 {
@@ -208,11 +212,13 @@ public sealed class VpnCore
                 }
                 else SysProxy.Enable($"127.0.0.1:{_httpPort}", State);
                 Running = true;
+                ActiveGuid = srv.Guid;
                 Since = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 Session.Begin(TunActive);   // 1.1.0: при аварийном выходе сторож вернёт интернет
                 Guard.Ensure();
+                StartHealth();              // 1.2.0
                 Fire("on");
-                Log.Write($"connected: {srv.Name}");
+                Log.Write($"connected: {srv.Name}" + (auto ? " (авто)" : ""));
             }
             catch (Exception ex)
             {
@@ -228,6 +234,7 @@ public sealed class VpnCore
     {
         lock (_gate)
         {
+            StopHealth();
             StopTun();
             StopProc();
             SysProxy.Restore(State);
@@ -246,15 +253,26 @@ public sealed class VpnCore
 
     public void Select(string guid)
     {
-        bool was;
+        bool reconnect;
         lock (_gate)
         {
-            if (!State.Servers.Any(s => s.Guid == guid)) return;
-            State.Selected = guid;
+            if (guid == AutoGuid)
+            {
+                if (State.AutoSelect) return;
+                State.AutoSelect = true;
+                reconnect = Running;
+            }
+            else
+            {
+                if (!State.Servers.Any(s => s.Guid == guid)) return;
+                State.AutoSelect = false;
+                State.Selected = guid;
+                reconnect = Running && ActiveGuid != guid;   // уже на нём — переподключаться незачем
+                if (Running && !reconnect) StopHealth();
+            }
             State.Save();
-            was = Running;
         }
-        if (was) Reconnect();
+        if (reconnect) Reconnect();
     }
 
     /// <summary>Выход из приложения / выключение ПК.</summary>
@@ -263,6 +281,7 @@ public sealed class VpnCore
         try
         {
             _stopping = true;
+            StopHealth();
             try { if (_tun != null && !_tun.HasExited) _tun.Kill(true); } catch { }
             try { if (_proc != null && !_proc.HasExited) _proc.Kill(true); } catch { }
             SysProxy.Restore(State);
@@ -285,6 +304,7 @@ public sealed class VpnCore
             State.AutoStart = d.AutoStart;
             State.TunMode = d.TunMode;
             State.Backdrop = WindowFx.Normalize(d.Backdrop);
+            State.AutoSelect = d.AutoSelect;
             State.LastUpdate = DateTime.MinValue;
             State.Save();
         }
@@ -372,6 +392,7 @@ public sealed class VpnCore
         lock (_gate)
         {
             if (!ReferenceEquals(sender, _proc) && !ReferenceEquals(sender, _tun)) return;
+            StopHealth();
             StopTun();
             StopProc();
             SysProxy.Restore(State);
@@ -379,6 +400,7 @@ public sealed class VpnCore
             Running = false;
             Since = 0;
         }
+        if (TryFailover()) return;   // 1.2.0: в «Авто» сами подключаемся к другому серверу
         FireError("VPN отключился. Нажми на снежинку, чтобы подключиться снова");
     }
 

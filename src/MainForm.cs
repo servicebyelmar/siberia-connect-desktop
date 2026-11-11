@@ -142,6 +142,15 @@ public sealed class MainForm : Form
         Invalidate(true);
     }
 
+    /// <summary>1.2.0: включить «Авто» или вернуться к ручному выбору (остаёмся на текущем сервере).</summary>
+    private void SetAutoMode(bool on)
+    {
+        if (on) { Core.Select(VpnCore.AutoGuid); return; }
+        var keep = Core.Running && !string.IsNullOrEmpty(Core.ActiveGuid) ? Core.ActiveGuid : Core.State.Selected;
+        if (!Core.State.Servers.Any(x => x.Guid == keep)) keep = Core.State.Servers.FirstOrDefault()?.Guid;
+        if (keep != null) Core.Select(keep);
+    }
+
     private void SetBackdrop(string mode)
     {
         Core.State.Backdrop = WindowFx.Normalize(mode);
@@ -346,6 +355,19 @@ public sealed class MainForm : Form
             if (Core.Running) Core.Disconnect(); else Core.Connect();
         }));
         menu.Items.Add(_miToggle);
+        // 1.2.0: автовыбор сервера
+        var miAuto = new ToolStripMenuItem("⚡️ Северное Сияние — автовыбор сервера") { CheckOnClick = false };
+        miAuto.Click += (_, _) =>
+        {
+            var on = !Core.State.AutoSelect;
+            Task.Run(() => { SetAutoMode(on); Ui(PushSnapshot); });
+        };
+        menu.Items.Add(miAuto);
+        menu.Opening += (_, _) =>
+        {
+            miAuto.Checked = Core.State.AutoSelect;
+            miAuto.Enabled = Core.State.Servers.Count > 1 && !Core.Busy;
+        };
         menu.Items.Add(new ToolStripSeparator());
 
         // 1.1.0: оформление окна (только Windows 11 22H2+)
@@ -590,6 +612,12 @@ public sealed class MainForm : Form
                 });
                 break;
             }
+            case "autoMode":        // 1.2.0
+            {
+                var on = A(0) == "true";
+                Task.Run(() => { SetAutoMode(on); Ui(PushSnapshot); });
+                break;
+            }
             case "backdrop":        // 1.1.0
                 SetBackdrop(A(0));
                 break;
@@ -619,8 +647,27 @@ public sealed class MainForm : Form
     private JsonObject Snapshot()
     {
         var servers = new JsonArray();
+        var auto = Core.State.AutoSelect && Core.State.Servers.Count > 1;
+        // 1.2.0: «Северное Сияние (Авто)» — первым пунктом списка; кабинет показывает его как обычный сервер
+        if (Core.State.Servers.Count > 1)
+        {
+            var active = Core.Running ? Core.State.Servers.FirstOrDefault(x => x.Guid == Core.ActiveGuid) : null;
+            servers.Add(new JsonObject
+            {
+                ["guid"] = VpnCore.AutoGuid,
+                ["name"] = auto && active != null ? $"⚡️ Северное Сияние → {active.Name}" : VpnCore.AutoName,
+                ["selected"] = auto,
+                ["auto"] = true
+            });
+        }
         foreach (var s in Core.State.Servers)
-            servers.Add(new JsonObject { ["guid"] = s.Guid, ["name"] = s.Name, ["selected"] = s.Guid == Core.State.Selected });
+            servers.Add(new JsonObject
+            {
+                ["guid"] = s.Guid, ["name"] = s.Name,
+                ["selected"] = !auto && s.Guid == Core.State.Selected,
+                ["active"] = Core.Running && s.Guid == Core.ActiveGuid,
+                ["ping"] = Core.PingOf(s.Guid)
+            });
         return new JsonObject
         {
             ["running"] = Core.Running,
@@ -630,6 +677,8 @@ public sealed class MainForm : Form
             ["autoStart"] = Core.State.AutoStart,
             ["tun"] = Core.State.TunMode,
             ["tunActive"] = Core.TunActive,
+            ["auto"] = Core.State.AutoSelect,
+            ["activeGuid"] = Core.Running ? Core.ActiveGuid : "",
             ["admin"] = Elevation.IsAdmin,
             ["glass"] = _glass,
             ["backdrop"] = WindowFx.Normalize(Core.State.Backdrop),

@@ -75,6 +75,43 @@ internal static class XrayConfig
         return cfg.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
+    /// <summary>1.2.0: конфиг для проверки «Авто» — по HTTP-входу на каждый сервер (вход i → сервер i).</summary>
+    public static string BuildProbe(string[] links, int[] ports, out bool[] valid)
+    {
+        valid = new bool[links.Length];
+        var inbounds = new JsonArray();
+        var outbounds = new JsonArray();
+        var rules = new JsonArray();
+        for (var i = 0; i < links.Length; i++)
+        {
+            JsonObject ob;
+            try { ob = Outbound(links[i]); }
+            catch { continue; }
+            ob["tag"] = "p" + i;
+            outbounds.Add(ob);
+            inbounds.Add(new JsonObject
+            {
+                ["tag"] = "in" + i, ["listen"] = "127.0.0.1", ["port"] = ports[i], ["protocol"] = "http",
+                ["settings"] = new JsonObject()
+            });
+            rules.Add(new JsonObject
+            {
+                ["type"] = "field",
+                ["inboundTag"] = new JsonArray((JsonNode)JsonValue.Create("in" + i)),
+                ["outboundTag"] = "p" + i
+            });
+            valid[i] = true;
+        }
+        outbounds.Add(new JsonObject { ["tag"] = "block", ["protocol"] = "blackhole" });
+        return new JsonObject
+        {
+            ["log"] = new JsonObject { ["loglevel"] = "warning", ["access"] = "none" },
+            ["inbounds"] = inbounds,
+            ["outbounds"] = outbounds,
+            ["routing"] = new JsonObject { ["domainStrategy"] = "AsIs", ["rules"] = rules }
+        }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
     private static JsonObject Rule(string tag, string[] domain = null, string[] ip = null)
     {
         var r = new JsonObject { ["type"] = "field", ["outboundTag"] = tag };

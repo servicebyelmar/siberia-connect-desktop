@@ -48,6 +48,11 @@
     setAutoStart: function (on) { S.autoStart = !!on; send('autoStart', [!!on]); },
     advanced: function () { send('advanced'); },
     installUpdate: function () { send('installUpdate'); },
+    /* 1.2.0: «Северное Сияние (Авто)». В servers() первым идёт {guid:'auto', auto:true};
+       у серверов есть ping (мс, -1 — нет связи, 0 — не проверяли) и active (через него подключены сейчас) */
+    autoMode: function () { return !!S.auto; },
+    setAutoMode: function (on) { S.auto = !!on; send('autoMode', [!!on]); },
+    activeServer: function () { return S.activeGuid || ''; },
     /* 1.1.0 */
     backdrop: function () { return S.backdrop || 'mica'; },          // mica | acrylic | off
     backdropSupported: function () { return !!S.backdropSupported; },

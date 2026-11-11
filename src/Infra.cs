@@ -127,6 +127,7 @@ public sealed class AppState
     public bool AutoStart { get; set; }
     public bool TunMode { get; set; }   // 1.0.2: «Весь компьютер»
     public string Backdrop { get; set; } = WindowFx.Mica;   // 1.1.0: mica | acrylic | off
+    public bool AutoSelect { get; set; } = true;            // 1.2.0: «Северное Сияние (Авто)» — по умолчанию
 
     // Настройки прокси Windows до включения VPN (чтобы вернуть как было)
     public bool ProxySaved { get; set; }

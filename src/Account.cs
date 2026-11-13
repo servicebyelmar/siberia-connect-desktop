@@ -146,6 +146,8 @@ public sealed partial class VpnCore
         Account = st;
         if (Api.S(st, "state") != "active") return;
         var link = Api.S(st, "link");
+        if (!string.IsNullOrEmpty(link) && !IsAllowedSubUrl(link))
+            Log.Write("auth: сервер выдал ссылку на неизвестный адрес — игнорирую: " + (Uri.TryCreate(link, UriKind.Absolute, out var bad) ? bad.Host : "?"));
         if (IsAllowedSubUrl(link) && link != State.SubUrl)
         {
             Log.Write("auth: сервер выдал новый ключ устройства — обновляю");

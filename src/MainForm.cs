@@ -629,8 +629,22 @@ public sealed class MainForm : Form
                 break;
             }
             case "advanced":
-                try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.Logs}\"") { UseShellExecute = true }); } catch { }
-                Emit(new JsonObject { ["type"] = "toast", ["text"] = "Открыл папку с журналом — отправь файлы в поддержку, если попросят" });
+                try
+                {
+                    // 1.3.2: журнал одним архивом на рабочем столе — его достаточно отправить в поддержку (ключей в нём нет)
+                    var zip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "SiberiaConnect-logs.zip");
+                    if (File.Exists(zip)) File.Delete(zip);
+                    using (var za = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create))
+                        foreach (var f in Directory.GetFiles(Paths.Logs))
+                        {
+                            using var src = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                            using var dst = za.CreateEntry(Path.GetFileName(f)).Open();
+                            src.CopyTo(dst);
+                        }
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{zip}\"") { UseShellExecute = true });
+                    Emit(new JsonObject { ["type"] = "toast", ["text"] = "Журнал сохранён на рабочий стол: SiberiaConnect-logs.zip — отправь его в поддержку" });
+                }
+                catch { try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.Logs}\"") { UseShellExecute = true }); } catch { } }
                 break;
             case "installUpdate":
             {

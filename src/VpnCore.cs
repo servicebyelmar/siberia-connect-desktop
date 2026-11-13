@@ -15,7 +15,7 @@ namespace SiberiaConnect;
 /// </summary>
 public sealed partial class VpnCore
 {
-    public static readonly string[] AllowedHosts = { "snezhnet.duckdns.org", "sibirapp.duckdns.org" };
+    public static readonly string[] AllowedHosts = { "snezhnet.duckdns.org", "sibirapp.duckdns.org", "sibir-cloud-api.ru" };   // 1.3.2: + relay (новые входы получали его и видели пустой список)
     private const int SocksPortBase = 20808;
 
     public AppState State { get; }
@@ -60,6 +60,18 @@ public sealed partial class VpnCore
 
     public bool HasSub => State.Servers.Count > 0;
 
+    /// <summary>1.3.2: та же подписка на запасном адресе (snezhnet:2096 ↔ relay sibir-cloud-api.ru:9443) — путь и ключ те же.</summary>
+    internal static IEnumerable<string> SubCandidates(string url)
+    {
+        yield return url;
+        Uri u;
+        try { u = new Uri(url); } catch { yield break; }
+        var h = u.IdnHost.ToLowerInvariant();
+        string alt = h == "sibir-cloud-api.ru" ? "snezhnet.duckdns.org:2096"
+                   : h == "snezhnet.duckdns.org" ? "sibir-cloud-api.ru:9443" : null;
+        if (alt != null) yield return $"https://{alt}{u.PathAndQuery}";
+    }
+
     public static bool IsAllowedSubUrl(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return false;
@@ -82,14 +94,23 @@ public sealed partial class VpnCore
         url = url.Trim();
         try
         {
-            string body;
-            try { body = Fetch(Direct, url); }
-            catch (Exception e1)
+            List<string> links = new();
+            foreach (var cand in SubCandidates(url))
             {
-                Log.Write("sub direct: " + e1.Message);
-                body = Fetch(ViaSystem, url);
+                string body;
+                try { body = Fetch(Direct, cand); }
+                catch (Exception e1)
+                {
+                    Log.Write($"sub direct ({new Uri(cand).Host}): " + e1.Message);
+                    try { body = Fetch(ViaSystem, cand); }
+                    catch (Exception e2) { Log.Write($"sub system ({new Uri(cand).Host}): " + e2.Message); continue; }
+                }
+                links = ParseSub(body);
+                // одна заглушка 127.0.0.1 («ключ не принят») — не список
+                if (links.Count > 0 && !links.All(l => l.Contains("@127.0.0.1:"))) break;
+                Log.Write($"sub ({new Uri(cand).Host}): пустой список, пробую запасной адрес");
+                links = new();
             }
-            var links = ParseSub(body);
             if (links.Count == 0)
             {
                 o["ok"] = false; o["error"] = "Сервер не выдал список. Проверь интернет или лимит устройств";

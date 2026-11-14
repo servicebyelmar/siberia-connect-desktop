@@ -195,8 +195,13 @@ public sealed partial class VpnCore
         catch { return null; }
     }
 
-    private static string Hash(string s) =>
-        Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(s)), 0, 8).ToLowerInvariant();
+    /// <summary>Идентичность сервера — его ссылка без имени (#…): переименование в подписке не должно считаться «сервер пропал» и рвать подключение при обновлении списка.</summary>
+    private static string Hash(string s)
+    {
+        var i = s.IndexOf('#');
+        var key = i >= 0 ? s[..i] : s;
+        return Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(key)), 0, 8).ToLowerInvariant();
+    }
 
     private static string NameOf(string link)
     {

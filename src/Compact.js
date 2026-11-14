@@ -11,7 +11,7 @@
     'html.win.scc #wside,html.win.scc .nav,html.win.scc #apphead{display:none!important}',
     'html.win.scc .wrap{position:fixed;top:34px;bottom:58px;left:0;right:0;max-width:none;margin:0;padding:4px 14px 8px!important;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}',
     'html.win.scc .wrap::-webkit-scrollbar{display:none}',
-    'html.win.scc .wrap:has(#s-home.on){overflow-y:hidden}',
+    'html.win.scc .wrap:has(#s-home.on),html.win.scc .wrap:has(#s-profile.on){overflow-y:hidden}',
     'html.win.scc.nonav .wrap{bottom:0;overflow-y:auto!important}',
     'html.win.scc .screen{max-width:none}',
     /* верхняя полоса: перетаскивание и × */
@@ -70,10 +70,30 @@
     '.sc-set.on{display:block}',
     '.sc-set .scdis{opacity:.5;cursor:default}',
     '.sc-set .scft{margin-top:14px;text-align:center;font-size:11px;color:#6F8DB0}',
-    /* реферальная карточка в «Профиле» */
-    '.scref{margin:12px 0;padding:14px;border:1px solid rgba(138,124,255,.28);border-radius:16px;background:linear-gradient(135deg,rgba(81,68,153,.3),rgba(13,34,72,.86));text-align:left}',
-    '.scref b{font-size:14px}',
-    '.scref p{margin:6px 0 10px;font-size:12px;line-height:1.5;color:#9FB8D6}'
+    /* «Профиль» на одном экране: карточка статуса и четыре плитки */
+    'html.win.scc #s-profile{height:100%}',
+    '.scp{height:100%;display:flex;flex-direction:column;gap:10px}',
+    '.scp-top{padding:14px;border:1px solid rgba(127,211,255,.18);border-radius:18px;background:linear-gradient(145deg,rgba(21,46,86,.75),rgba(8,23,52,.8))}',
+    '.scp-me{display:flex;align-items:center;gap:12px;min-width:0}',
+    '.scp-me>div{min-width:0}',
+    '.scp-ava{width:42px;height:42px;flex:none;border-radius:14px;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:18px;color:#062138;background:linear-gradient(135deg,#3DE0C2,#7FD3FF)}',
+    '.scp-me b{display:block;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.scp-pill{display:inline-block;margin-top:3px;font-size:11px;font-weight:700;color:#3DE0C2}',
+    '.scp-pill.bad{color:#FF9DB0}',
+    '.scp-bar{height:6px;border-radius:6px;background:rgba(127,211,255,.12);overflow:hidden;margin:12px 0 6px}',
+    '.scp-bar i{display:block;height:100%;background:linear-gradient(90deg,#3DE0C2,#7FD3FF)}',
+    '.scp-until{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#9FB8D6}',
+    '.scp-renew{width:100%;height:44px;margin-top:12px;border:0;border-radius:13px;font:inherit;font-weight:750;font-size:14.5px;color:#062138;background:linear-gradient(110deg,#3DE0C2,#8DEBD9);box-shadow:0 8px 24px rgba(61,224,194,.22);cursor:pointer}',
+    '.scp-renew:hover{filter:brightness(1.06)}',
+    '.scp-grid{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px}',
+    '.scp-tile{display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:13px;border:1px solid rgba(159,184,214,.13);border-radius:16px;background:linear-gradient(145deg,rgba(17,39,78,.72),rgba(8,22,51,.72));color:#fff;font:inherit;text-align:left;cursor:pointer;min-width:0;overflow:hidden}',
+    '.scp-tile:hover{border-color:rgba(127,211,255,.42)}',
+    '.scp-tile.dis{opacity:.5;cursor:default}',
+    '.scp-tile i{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:rgba(127,211,255,.1);color:#7FD3FF}',
+    '.scp-tile i svg{width:18px;height:18px}',
+    '.scp-tile span{min-width:0;max-width:100%}',
+    '.scp-tile b{display:block;font-size:14px}',
+    '.scp-tile small{display:block;margin-top:2px;font-size:11.5px;color:#9FB8D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
   ].join('\n');
 
   var ICON = {
@@ -154,6 +174,8 @@
       row('phone', 'c2', 'Исключения', 'домены и приложения напрямую · скоро. Российские сайты и банки уже идут напрямую', '', '', true) +
       row('clock', 'c5', 'Сворачивание в трей', 'кнопка × прячет окно, VPN продолжает работать. Выход — значок у часов → «Выход»', '', '', true) +
       row('gear', 'c5', 'Отправить логи', 'архив ляжет на рабочий стол — отправьте его в поддержку', 'SCNative.advanced()') +
+      row('ticket', 'c3', 'Код для входа на другом устройстве', '', 'myCode()') +
+      (typeof logout === 'function' ? row('user', 'c6', 'Выйти из аккаунта', '', 'logout()') : '') +
       '</div><div class="scft">Siberia Connect' + (ver ? ' · v' + ver : '') + '</div></div>';
   }
 
@@ -186,18 +208,66 @@
     }
 
     var prof = $('s-profile');
-    if (prof && !$('sc-ref')) {
-      var nxp = prof.querySelector('.nxp');
-      if (nxp) {
-        var card = document.createElement('div');
-        card.id = 'sc-ref'; card.className = 'scref';
-        card.innerHTML = '<b>🎁 Пригласи друга</b><p>Другу — 6 дней бесплатно, тебе — +30 дней за каждых троих, кто оплатит.</p>' +
-          '<button class="btn" type="button" onclick="go(\'bonus\',\'profile\')">Получить ссылку</button>';
-        var first = nxp.querySelector('.nxcard');
-        if (first && first.parentNode === nxp) nxp.insertBefore(card, first.nextSibling); else nxp.insertBefore(card, nxp.firstChild);
-      }
-    }
+    if (prof && prof.querySelector('.nxp')) compactProfile(prof);
   }
+
+  /* ───── «Профиль»: статус подписки и четыре плитки вместо длинного списка ───── */
+  var SITE = 'https://sibir-cloud-api.site/account';
+  var PI = {
+    dev: '<rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M11 17h2"/>',
+    gift: '<path d="M20 12v9H4v-9M2.5 7h19v5h-19zM12 7v14"/><path d="M12 7H7.5a2.5 2.5 0 1 1 2.4-3.2C10.4 5.4 12 7 12 7Zm0 0h4.5a2.5 2.5 0 1 0-2.4-3.2C13.6 5.4 12 7 12 7Z"/>',
+    cab: '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17M7 14h4"/>',
+    sup: '<path d="M4 13v-2a8 8 0 0 1 16 0v2M4 12H3v5h4v-5H4Zm16 0h1v5h-4v-5h3ZM17 20h-5"/>'
+  };
+  function tile(k, title, sub, onclick, dis) {
+    return '<button type="button" class="scp-tile' + (dis ? ' dis' : '') + '"' + (onclick && !dis ? ' onclick="' + onclick + '"' : '') + '><i>' + svg(PI[k]) + '</i>' +
+      '<span><b>' + title + '</b><small>' + sub + '</small></span></button>';
+  }
+  function compactProfile(prof) {
+    var d = null;
+    try { d = D; } catch (e) {}
+    if (!d) return;
+    var act = d.status === 'active';
+    var v = d.devices || {}, lim = v.limit || d.devices_std || 2;
+    var pill = act ? '● Доступ активен' : d.status === 'expired' ? '● Доступ закончился' : d.status === 'blocked' ? '● Приостановлен' : '● Без подписки';
+    var pct = act ? Math.max(4, Math.min(100, Math.round(d.days_left / (d.period || 30) * 100))) : 0;
+    var until = String(d.until || '').split(' ')[0];
+    var left = '';
+    try { left = 'осталось ' + d.days_left + ' ' + dword(d.days_left); } catch (e) {}
+    prof.innerHTML = '<div class="scp"><div class="scp-top">' +
+      '<div class="scp-me"><i class="scp-ava">' + H((d.name || '❄').charAt(0).toUpperCase()) + '</i><div><b>' + H(d.name || 'Мой профиль') + '</b>' +
+      '<span class="scp-pill' + (act ? '' : ' bad') + '">' + pill + '</span></div></div>' +
+      (act ? '<div class="scp-bar"><i style="width:' + pct + '%"></i></div><div class="scp-until"><span>до ' + H(until) + '</span><span>' + left + '</span></div>' : '') +
+      (d.status === 'blocked' ? '' : '<button class="scp-renew" type="button" onclick="scRenew()">' + (act ? 'Продлить подписку' : 'Выбрать тариф') + '</button>') +
+      '</div><div class="scp-grid">' +
+      tile('dev', 'Устройства', act ? (v.registered || 0) + ' из ' + lim : '—', 'nxDevices()', !act) +
+      tile('gift', 'Пригласить друга', 'другу +6 дней · тебе +30', 'scRef()') +
+      tile('cab', 'Личный кабинет', 'sibir-cloud-api.site', 'scSite()') +
+      tile('sup', 'Поддержка', 'ответим в приложении', "openPage('support','profile')") +
+      '</div></div>';
+  }
+
+  window.scSite = window.scRenew = function () {
+    try { openUrl(SITE); } catch (e) { try { window.SCNative.openExternal(SITE); } catch (x) {} }
+  };
+
+  window.scRef = async function () {
+    var head = '<div class="shi">🎁</div><b>Пригласи друга</b>';
+    try { sheet(head + '<div class="lwait"><i></i>Загружаю…</div>'); } catch (e) { return; }
+    var r = null;
+    try { r = await act('ref'); } catch (e) {}
+    if (!r || !r.ok) {
+      sheet(head + '<p>' + H((r && r.error) || 'Не удалось загрузить ссылку') + '</p><button class="btn ghost" onclick="closeSheet()">Закрыть</button>');
+      return;
+    }
+    window.__scLink = r.link; window.__scShare = r.share;
+    sheet(head + '<p>Другу — <b>' + r.friend_days + ' ' + dword(r.friend_days) + '</b> бесплатно вместо ' + r.trial_days + '.<br>' +
+      'Тебе — <b>+' + r.bonus + ' дней</b>, когда друг оплатит тариф.<br>' +
+      'Каждые ' + r.goal + ' оплативших — ещё <b>+' + r.goal_days + ' дней</b>.</p>' +
+      '<div class="keybox" onclick="copyText(__scLink,\'✅ Ссылка скопирована\')">' + H(r.link) + '</div>' +
+      '<button class="btn" onclick="openTg(__scShare)">📤 Отправить другу</button>' +
+      '<button class="btn ghost" onclick="closeSheet()">Закрыть</button>');
+  };
 
   function boot() {
     try {

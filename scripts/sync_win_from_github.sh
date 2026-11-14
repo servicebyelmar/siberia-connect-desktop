@@ -53,4 +53,4 @@ curl -fL --max-time 900 -o "$T/SiberiaConnect-Setup-$VER.exe" "$EXE_URL"
 curl -fL --max-time 60  -o "$T/update.json" "$JSON_URL"
 [ "$PORT_URL" = "-" ] || curl -fL --max-time 900 -o "$T/SiberiaConnect-Portable-$VER.zip" "$PORT_URL"
 
-bash "$HERE/publish_win.sh" "$T" --if-newer --notes "Автовыкладка релиза $TAG"
+bash "$HERE/publish_win.sh" "$T" --if-newer

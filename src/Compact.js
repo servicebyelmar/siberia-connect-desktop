@@ -64,6 +64,14 @@
     'html.win.scc .wright .wcard h4{display:none}',
     'html.win.scc .wip{margin:0;font-size:13px;font-weight:600;word-break:normal;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;justify-content:center}',
     'html.win.scc .wip small{display:inline!important;margin:0;font-size:12px;font-weight:500}',
+    /* плашка «Доступно обновление» */
+    '.sc-upd{display:none;position:fixed;left:14px;right:14px;top:38px;z-index:9;height:40px;align-items:center;gap:8px;padding:0 8px 0 12px;border:1px solid rgba(61,224,194,.35);border-radius:12px;background:linear-gradient(110deg,rgba(61,224,194,.16),rgba(127,211,255,.08));font-size:12.5px;font-weight:600}',
+    '.sc-upd.on{display:flex}',
+    '.sc-upd span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.sc-upd button{border:0;border-radius:9px;padding:6px 11px;font:inherit;font-weight:700;font-size:12px;cursor:pointer;color:#062138;background:#3DE0C2}',
+    '.sc-upd button.g{background:transparent;color:#9FB8D6;font-weight:600;padding:6px 6px}',
+    'html.win.scc.scu .wrap{top:84px}',
+    'html.win.scc.scu .sc-set{top:84px}',
     /* вкладка «Настройки» */
     '.sc-set{display:none;position:fixed;left:0;right:0;top:34px;bottom:58px;z-index:8;padding:6px 14px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:#060F2A}',
     '.sc-set::-webkit-scrollbar{display:none}',
@@ -123,6 +131,11 @@
     top.querySelector('.sc-x').addEventListener('click', function () { send('hide'); });
     document.body.appendChild(top);
 
+    var ub = document.createElement('div');
+    ub.className = 'sc-upd';
+    ub.id = 'sc-upd';
+    document.body.appendChild(ub);
+
     nav = document.createElement('nav');
     nav.className = 'sc-nav';
     nav.innerHTML = ['vpn', 'settings', 'profile'].map(function (k) {
@@ -154,7 +167,44 @@
     else if (document.querySelector('#s-home.on')) k = 'vpn';
     var bs = nav.querySelectorAll('button');
     for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', bs[i].getAttribute('data-k') === k);
+    updBar();
   }
+
+  /* ───── плашка обновления: данные приходят из приложения (версия уже прошла проверку подписи) ───── */
+  var upd = { stage: '', pct: 0, skip: '' };
+
+  function updVer() {
+    var v = '';
+    try { v = window.SCNative.updateVersion ? String(window.SCNative.updateVersion() || '') : ''; } catch (e) {}
+    return v.replace(/[^0-9A-Za-z._-]/g, '');
+  }
+
+  function updBar() {
+    var el = $('sc-upd');
+    if (!el) return;
+    var v = updVer(), show = !!v && upd.skip !== v && !document.documentElement.classList.contains('nonav'), html = '';
+    if (show) {
+      if (upd.stage === 'download') html = '<span>Скачиваю обновление v' + v + '… ' + upd.pct + '%</span>';
+      else if (upd.stage === 'install') html = '<span>Устанавливаю v' + v + '…</span>';
+      else if (upd.stage === 'ready') html = '<span>Обновление v' + v + ' готово</span><button type="button" onclick="scUpdGo2()">Перезапустить</button>';
+      else html = '<span>Доступно обновление v' + v + '</span><button type="button" onclick="scUpdGo2()">Обновить</button><button class="g" type="button" onclick="scUpdLater2()">Позже</button>';
+    }
+    if (el.getAttribute('data-h') !== html) { el.setAttribute('data-h', html); el.innerHTML = html; }
+    el.classList.toggle('on', show);
+    document.documentElement.classList.toggle('scu', show);
+  }
+
+  function onUpd(ev) {
+    var st = ev.stage;
+    if (st === 'download') { upd.stage = 'download'; upd.pct = ev.pct | 0; }
+    else if (st === 'ready' || st === 'install' || st === 'available') upd.stage = st;
+    else if (st === 'error') upd.stage = '';
+    else if (st === 'none') { try { toast('У тебя последняя версия ✓'); } catch (e) {} }
+    updBar();
+  }
+
+  window.scUpdGo2 = function () { upd.stage = 'download'; upd.pct = 0; updBar(); try { window.SCNative.installUpdate(); } catch (e) {} };
+  window.scUpdLater2 = function () { upd.skip = updVer(); updBar(); };
 
   /* ───── вкладка «Настройки» ───── */
   function row(i, cls, title, sub, onclick, right, dis) {
@@ -164,7 +214,8 @@
   function tg(on) { return '<i class="nxtg' + (on ? ' on' : '') + '"></i>'; }
 
   function drawSettings() {
-    var S = window.SCNative, auto = false, tun = false, ver = '';
+    var S = window.SCNative, auto = false, tun = false, ver = '', au = true;
+    try { au = !!S.autoUpdate(); } catch (e) {}
     try { auto = !!S.autoStart(); } catch (e) {}
     try { tun = !!S.tunMode(); } catch (e) {}
     try { ver = S.version(); } catch (e) {}
@@ -173,6 +224,8 @@
       (S.tunMode ? row('shield', 'c2', 'Весь компьютер', tun ? 'игры и все программы — через VPN' : 'сейчас — браузеры и большинство программ', 'scTun()', tg(tun)) : '') +
       row('phone', 'c2', 'Исключения', 'домены и приложения напрямую · скоро. Российские сайты и банки уже идут напрямую', '', '', true) +
       row('clock', 'c5', 'Сворачивание в трей', 'кнопка × прячет окно, VPN продолжает работать. Выход — значок у часов → «Выход»', '', '', true) +
+      row('bolt', 'c4', 'Автообновление', 'скачивать и ставить новые версии само', 'scSetAu()', tg(au)) +
+      row('clock', 'c5', 'Проверить обновления', 'сейчас v' + ver, 'scCheckUpd()') +
       row('gear', 'c5', 'Отправить логи', 'архив ляжет на рабочий стол — отправьте его в поддержку', 'SCNative.advanced()') +
       row('ticket', 'c3', 'Код для входа на другом устройстве', '', 'myCode()') +
       (typeof logout === 'function' ? row('user', 'c6', 'Выйти из аккаунта', '', 'logout()') : '') +
@@ -184,6 +237,17 @@
     try { S.setAutoStart(on); } catch (e) {}
     try { toast(on ? '✅ Будет запускаться с Windows и включать VPN' : 'Автозапуск выключен'); } catch (e) {}
     setTimeout(function () { if (set.classList.contains('on')) drawSettings(); }, 150);
+  };
+
+  window.scSetAu = function () {
+    var S = window.SCNative, on = !S.autoUpdate();
+    try { S.setAutoUpdate(on); } catch (e) {}
+    try { toast(on ? 'Автообновление включено' : 'Автообновление выключено'); } catch (e) {}
+    setTimeout(function () { if (set.classList.contains('on')) drawSettings(); }, 150);
+  };
+
+  window.scCheckUpd = function () {
+    try { toast('Проверяю обновления…'); window.SCNative.checkUpdate(); } catch (e) {}
   };
 
   /* ───── правки текстов и реферальная карточка ───── */
@@ -279,6 +343,24 @@
       if (typeof go === 'function') {
         var _go = go;
         go = function () { hideSettings(); var r = _go.apply(this, arguments); setTimeout(sync, 0); return r; };
+      }
+      /* события обновления из приложения → плашка */
+      var _sn = window.scNative;
+      window.scNative = function (ev) {
+        try { if (ev && ev.type === 'update') onUpd(ev); } catch (e) {}
+        return _sn ? _sn.apply(this, arguments) : undefined;
+      };
+      /* окно «Новая версия» самой страницы заменено плашкой; принудительное обновление (min.json) по-прежнему блокирует экран */
+      if (typeof nxUpdCheck === 'function') {
+        var _nuc = nxUpdCheck;
+        nxUpdCheck = async function () {
+          try {
+            var r = await fetch('dl/win.json?' + Date.now(), { cache: 'no-store' });
+            var w = r.ok ? await r.json() : null;
+            if (w && w.version) localStorage.setItem('upd_skip', JSON.stringify({ v: w.version, t: Date.now() }));
+          } catch (e) {}
+          return _nuc.apply(this, arguments);
+        };
       }
       new MutationObserver(tidy).observe(document.body, { childList: true, subtree: true, characterData: true });
       setInterval(sync, 300);

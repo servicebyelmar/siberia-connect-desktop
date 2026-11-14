@@ -67,6 +67,11 @@
     setAutoStart: function (on) { S.autoStart = !!on; send('autoStart', [!!on]); },
     advanced: function () { send('advanced'); },
     installUpdate: function () { send('installUpdate'); },
+    /* 1.4.0: тихое автообновление */
+    updateVersion: function () { return S.update || ''; },          // версия, доступная на сервере (подпись уже проверена); '' — обновлений нет
+    autoUpdate: function () { return S.autoUpdate !== false; },
+    setAutoUpdate: function (on) { S.autoUpdate = !!on; send('autoUpdate', [!!on]); },
+    checkUpdate: function () { send('checkUpdate'); },
     /* 1.3.0 */
     account: function () { return S.account || ''; },               // active | expired | blocked | device_limit | ''
     linkTelegram: function () { send('linkTelegram'); },

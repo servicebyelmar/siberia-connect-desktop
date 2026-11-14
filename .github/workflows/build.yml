@@ -4,9 +4,14 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Выложить релиз (сервер сам заберёт и опубликует). Сборки из main выкладываются всегда"
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -100,6 +105,21 @@ jobs:
       - name: Portable zip
         shell: pwsh
         run: Compress-Archive -Path publish/* -DestinationPath "out/SiberiaConnect-Portable-$env:APP_VERSION.zip"
+
+      - name: Release (установщик + update.json — сервер сам заберёт, проверит подпись и опубликует)
+        if: github.ref == 'refs/heads/main' || inputs.publish == true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$APP_VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::warning::Релиз $tag уже существует — не перезаписываю. Для новой версии подними VERSION."
+            exit 0
+          fi
+          gh release create "$tag" "out/SiberiaConnect-Setup-$APP_VERSION.exe" out/update.json "out/SiberiaConnect-Portable-$APP_VERSION.zip" \
+            --target "$GITHUB_SHA" --title "Siberia Connect $APP_VERSION" \
+            --notes "Автосборка $GITHUB_SHA. Установщик подписан UPDATE_KEY; сервер забирает релиз сам и перед выкладкой проверяет подпись."
 
       - uses: actions/upload-artifact@v4
         with:

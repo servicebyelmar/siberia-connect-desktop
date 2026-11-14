@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Microsoft.Web.WebView2.Core;
@@ -26,7 +27,6 @@ public sealed class MainForm : Form
     private bool _exiting;
     private bool _ready;
     private bool _webStarted;
-    private bool _trayHint;
     private bool _glass;   // 1.1.0: Mica/Acrylic включён
 
     private readonly Panel _splash;
@@ -43,22 +43,16 @@ public sealed class MainForm : Form
         Icon = _iconOn;
         BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(1040, 680);
-        MinimumSize = new Size(760, 560);
+        // 1.4.0: компактное вертикальное окно «одна кнопка»; размер задаётся при 100% масштаба и растёт по DPI
+        // бесрамочное окно со скруглёнными углами: шапку и кнопку × рисует сама страница (Compact.js)
+        FormBorderStyle = FormBorderStyle.None;
+        MaximizeBox = false;
+        ClientSize = new Size(360, 640);
+        MinimumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
-        // 1.0.2: фирменная заставка на доли секунды, пока поднимается интерфейс
-        _splash = new Panel { Dock = DockStyle.Fill, BackColor = WindowFx.Brand };
-        var logo = new PictureBox { Size = new Size(120, 120), SizeMode = PictureBoxSizeMode.Zoom, Image = AppInfo.LoadBitmap(), BackColor = Color.Transparent };
-        var title = new Label { Text = "Siberia Connect", AutoSize = true, ForeColor = Color.White, BackColor = Color.Transparent,
-            Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold) };
-        _splash.Controls.Add(logo);
-        _splash.Controls.Add(title);
-        _splash.Resize += (_, _) =>
-        {
-            logo.Location = new Point((_splash.ClientSize.Width - logo.Width) / 2, _splash.ClientSize.Height / 2 - logo.Height + 10);
-            title.Location = new Point((_splash.ClientSize.Width - title.Width) / 2, logo.Bottom + 18);
-        };
+        // 1.4.0: арктическая заставка (assets/splash.png — ледокол; пока файла нет, рисуется заготовка с логотипом)
+        _splash = new SplashPanel();
         Controls.Add(_splash);
         _splash.BringToFront();
         ResumeLayout(false);
@@ -68,6 +62,7 @@ public sealed class MainForm : Form
         Core.TokenChanged += t => Ui(() => PushToken(t));
 
         SetupTray();
+        StartUpdateTimer();
         _stats.Tick += (_, _) => PushStats();
         _refresh = new System.Threading.Timer(_ =>
         {
@@ -124,10 +119,48 @@ public sealed class MainForm : Form
         base.SetVisibleCore(value);
     }
 
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var cp = base.CreateParams;
+            cp.Style |= 0x00020000;   // WS_MINIMIZEBOX: без рамки окно всё равно сворачивается кликом по значку на панели задач
+            return cp;
+        }
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
         ApplyBackdrop();
+        ApplyShape();
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        ApplyShape();
+    }
+
+    [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>Скруглённые углы (радиус 18 px при 100% масштаба) — одинаково на Windows 10 и 11.</summary>
+    private void ApplyShape()
+    {
+        if (!IsHandleCreated || Width < 40 || Height < 40) return;
+        try
+        {
+            int d = (int)Math.Round(36 * DeviceDpi / 96.0);
+            using var gp = new System.Drawing.Drawing2D.GraphicsPath();
+            gp.AddArc(0, 0, d, d, 180, 90);
+            gp.AddArc(Width - d, 0, d, d, 270, 90);
+            gp.AddArc(Width - d, Height - d, d, d, 0, 90);
+            gp.AddArc(0, Height - d, d, d, 90, 90);
+            gp.CloseFigure();
+            Region = new Region(gp);
+        }
+        catch (Exception ex) { Log.Write("shape: " + ex.Message); }
     }
 
     // ───────────────────────── 1.1.0: стекло Windows 11 ─────────────────────────
@@ -135,7 +168,7 @@ public sealed class MainForm : Form
     private void ApplyBackdrop()
     {
         if (!IsHandleCreated) return;
-        _glass = WindowFx.Apply(Handle, Core?.State.Backdrop);
+        _glass = WindowFx.Apply(Handle, WindowFx.Off);   // 1.4.0: окно без рамки — сплошной фон, без Mica/Acrylic
         // чёрный фон формы под расширенной рамкой DWM = прозрачный → видно Mica/Acrylic
         BackColor = _glass ? Color.Black : WindowFx.Brand;
         try { _web.DefaultBackgroundColor = _glass ? Color.Transparent : WindowFx.Brand; }
@@ -308,7 +341,7 @@ public sealed class MainForm : Form
             int w = Math.Min(Width, wa.Width - 40), h = Math.Min(Height, wa.Height - 40);
             if (w != Width || h != Height)
             {
-                Size = new Size(Math.Max(w, 640), Math.Max(h, 480));
+                Size = new Size(Math.Max(w, 360), Math.Max(h, 480));
                 Location = new Point(wa.Left + (wa.Width - Width) / 2, wa.Top + (wa.Height - Height) / 2);
             }
         }
@@ -330,15 +363,7 @@ public sealed class MainForm : Form
         if (e.CloseReason == CloseReason.UserClosing && !_exiting)
         {
             e.Cancel = true;
-            Hide();
-            if (!_trayHint)
-            {
-                _trayHint = true;
-                _tray.ShowBalloonTip(4000, "Siberia Connect",
-                    Core.Running ? "VPN продолжает работать. Приложение в трее — значок со снежинкой у часов."
-                                 : "Приложение свернулось в трей — значок со снежинкой у часов.",
-                    ToolTipIcon.None);
-            }
+            Hide();   // 1.4.0: молча в трей, без всплывающих подсказок
             return;
         }
         base.OnFormClosing(e);
@@ -401,7 +426,7 @@ public sealed class MainForm : Form
         menu.Items.Add(new ToolStripSeparator());
 
         // 1.1.0: оформление окна (только Windows 11 22H2+)
-        var fx = new ToolStripMenuItem("Оформление окна") { Visible = WindowFx.Supported };
+        var fx = new ToolStripMenuItem("Оформление окна") { Visible = false };   // 1.4.0: у бесрамочного окна стекла нет
         foreach (var (id, title) in new[]
                  {
                      (WindowFx.Mica, "Mica — матовое стекло"),
@@ -513,7 +538,7 @@ public sealed class MainForm : Form
         var init = Snapshot();
         init["version"] = AppInfo.Version;
         init["deviceId"] = Core.DeviceId;
-        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString());
+        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString()) + "\n" + AppInfo.ResourceText("Compact.js");
     }
 
     private static bool IsOurs(string uri) =>
@@ -647,19 +672,18 @@ public sealed class MainForm : Form
                 catch { try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.Logs}\"") { UseShellExecute = true }); } catch { } }
                 break;
             case "installUpdate":
+                StartInstall();
+                break;
+            case "checkUpdate":     // 1.4.0: кнопка «Проверить обновления»
+                _ = CheckUpdate(true);
+                break;
+            case "autoUpdate":      // 1.4.0: галочка «Автообновление»
             {
-                var reconnect = Core.Running;
-                Task.Run(async () =>
-                {
-                    var err = await Updater.Install(reconnect,
-                        p => Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "download", ["pct"] = p })));
-                    Ui(() =>
-                    {
-                        if (err != null) { Emit(new JsonObject { ["type"] = "update", ["stage"] = "error", ["text"] = err }); return; }
-                        Emit(new JsonObject { ["type"] = "update", ["stage"] = "install" });
-                        ExitApp();   // установщик заменит файлы и сам запустит новую версию
-                    });
-                });
+                var on = A(0) == "true";
+                Core.State.AutoUpdate = on;
+                Core.State.Save();
+                PushSnapshot();
+                if (on && _updM != null) _ = AutoFlow(_updM);
                 break;
             }
             case "authToken":       // 1.3.0: кабинет вошёл/вышел
@@ -683,10 +707,88 @@ public sealed class MainForm : Form
             case "backupRestore":   // 1.1.0
                 BeginInvoke(new Action(BackupRestore));
                 break;
+            case "drag":            // 1.4.0: перетаскивание окна за верхнюю полосу страницы
+                ReleaseCapture();
+                SendMessage(Handle, 0x00A1, (IntPtr)2, IntPtr.Zero);   // WM_NCLBUTTONDOWN, HTCAPTION
+                break;
+            case "hide":            // 1.4.0: кнопка × — молча в трей
+                Hide();
+                break;
             case "reload":
                 try { _web.CoreWebView2.Navigate(Home); } catch { }
                 break;
         }
+    }
+
+    // ───────────────────────── 1.4.0: тихое автообновление ─────────────────────────
+
+    private Updater.Manifest _updM;
+    private int _updBusy;
+    private System.Threading.Timer _updTimer;
+
+    /// <summary>Проверка win.json в фоне: через 20 секунд после старта и затем раз в 6 часов (запуск окна не задерживается).</summary>
+    private void StartUpdateTimer()
+    {
+        _updTimer = new System.Threading.Timer(_ => { _ = CheckUpdate(false); }, null, TimeSpan.FromSeconds(20), TimeSpan.FromHours(6));
+    }
+
+    private async Task CheckUpdate(bool manual)
+    {
+        if (Interlocked.Exchange(ref _updBusy, 1) == 1) return;
+        try
+        {
+            var m = await Updater.Check();
+            _updM = m;
+            if (m == null)
+            {
+                Ui(() =>
+                {
+                    PushSnapshot();
+                    if (manual) Emit(new JsonObject { ["type"] = "update", ["stage"] = "none" });
+                });
+                return;
+            }
+            Log.Write($"update: на сервере {m.Version}, у нас {AppInfo.Version}");
+            Ui(() =>
+            {
+                PushSnapshot();
+                Emit(new JsonObject { ["type"] = "update", ["stage"] = "available", ["version"] = m.Version });
+            });
+            if (Core.State.AutoUpdate) await AutoFlow(m);
+        }
+        catch (Exception ex) { Log.Write("update check: " + ex.Message); }
+        finally { Interlocked.Exchange(ref _updBusy, 0); }
+    }
+
+    /// <summary>Автообновление: скачать и проверить заранее. Окно в трее — ставим сразу, открыто — предлагаем «Перезапустить».</summary>
+    private async Task AutoFlow(Updater.Manifest m)
+    {
+        var err = await Updater.Download(m, p => Ui(() =>
+        {
+            if (Visible) Emit(new JsonObject { ["type"] = "update", ["stage"] = "download", ["pct"] = p });
+        }));
+        if (err != null) { Log.Write("auto-update: " + err); return; }
+        Ui(() =>
+        {
+            Emit(new JsonObject { ["type"] = "update", ["stage"] = "ready", ["version"] = m.Version });
+            if (!Visible && !Core.Busy) StartInstall();   // установщик сам закроет приложение, поставит файлы, запустит новую версию (и подключение, если VPN был включён)
+        });
+    }
+
+    private void StartInstall()
+    {
+        var reconnect = Core.Running;
+        Task.Run(async () =>
+        {
+            var err = await Updater.Install(reconnect,
+                p => Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "download", ["pct"] = p })));
+            Ui(() =>
+            {
+                if (err != null) { Emit(new JsonObject { ["type"] = "update", ["stage"] = "error", ["text"] = err }); return; }
+                Emit(new JsonObject { ["type"] = "update", ["stage"] = "install" });
+                ExitApp();   // установщик заменит файлы и сам запустит новую версию
+            });
+        });
     }
 
     private void OnCoreEvent(JsonObject ev)
@@ -747,6 +849,8 @@ public sealed class MainForm : Form
             ["glass"] = _glass,
             ["backdrop"] = WindowFx.Normalize(Core.State.Backdrop),
             ["backdropSupported"] = WindowFx.Supported,
+            ["update"] = _updM?.Version ?? "",
+            ["autoUpdate"] = Core.State.AutoUpdate,
             ["stats"] = StatsJson()
         };
     }

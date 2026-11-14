@@ -1,0 +1,10 @@
+[Unit]
+Description=Siberia Connect · проверка новых релизов Windows-клиента раз в 5 минут
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

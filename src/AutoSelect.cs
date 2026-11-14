@@ -16,12 +16,15 @@ public sealed partial class VpnCore
 {
     public const string AutoGuid = "auto";
     public const string AutoName = "⚡️ Северное Сияние (Авто)";
-    private const string ProbeUrl = "https://www.gstatic.com/generate_204";
+    private const string ProbeUrl = "https://www.gstatic.com/generate_204";          // этап 1: внешний интернет через узел
+    private const string VerifyUrl = "https://www.youtube.com/generate_204";         // этап 2: узел пропускает и YouTube
+    private const int ProbeTimeoutMs = 3000;                                         // жёсткий таймаут одного запроса
 
     /// <summary>Сервер, через который VPN подключён сейчас.</summary>
     public string ActiveGuid { get; private set; } = "";
 
     private readonly Dictionary<string, int> _pings = new();
+    private readonly HashSet<string> _verified = new();   // узлы, прошедшие и этап 2
     private System.Threading.Timer _health;
     private int _healthBusy;
     private int _healthFails;
@@ -33,22 +36,35 @@ public sealed partial class VpnCore
         lock (_pings) return _pings.TryGetValue(guid, out var v) ? v : 0;
     }
 
+    /// <summary>
+    /// 1.4.0: «рабочий важнее быстрого». Рабочий узел — тот, через который generate_204 вернул именно 204 за 3 секунды.
+    /// Среди рабочих сначала берём прошедшие и YouTube-проверку, потом самый быстрый (при почти равной скорости —
+    /// тот, что выше в подписке). null — ни один узел не отдал 204: подключаться нельзя, интернета нет или узлы перегружены.
+    /// </summary>
     private ServerItem PickAuto()
     {
         var list = State.Servers.ToList();
+        if (list.Count == 0) return null;
         var res = Probe(list);
-        Log.Write("auto: " + string.Join(", ", list.Select(s => $"{s.Name} = {(res[s.Guid] > 0 ? res[s.Guid] + " мс" : "нет связи")}")));
+        HashSet<string> verified;
+        lock (_pings) verified = new HashSet<string>(_verified);
+        Log.Write("auto: " + string.Join(", ", list.Select(s =>
+            $"{s.Name} = {(res[s.Guid] > 0 ? res[s.Guid] + " мс" + (verified.Contains(s.Guid) ? " +yt" : "") : "нет 204")}")));
         var ok = list.Select((s, i) => (s, i, ms: res[s.Guid])).Where(x => x.ms > 0).ToList();
-        if (ok.Count == 0)
-        {
-            // никто не ответил — скорее всего, пропал сам интернет; берём прежний сервер
-            return list.FirstOrDefault(s => s.Guid == ActiveGuid)
-                   ?? list.FirstOrDefault(s => s.Guid == State.Selected)
-                   ?? list[0];
-        }
+        if (ok.Count == 0) return null;
+        var full = ok.Where(x => verified.Contains(x.s.Guid)).ToList();
+        if (full.Count > 0) ok = full;
         var best = ok.Min(x => x.ms);
         var slack = Math.Max(20, best * 15 / 100);
         return ok.Where(x => x.ms <= best + slack).OrderBy(x => x.i).First().s;
+    }
+
+    /// <summary>Подключаемся к одному серверу: после старта ядра проверяем, что 204 действительно проходит (две попытки).</summary>
+    private bool VerifyCore()
+    {
+        for (var i = 0; i < 2; i++)
+            if (Measure(_httpPort).GetAwaiter().GetResult() > 0) return true;
+        return false;
     }
 
     private Dictionary<string, int> Probe(List<ServerItem> list)
@@ -96,7 +112,7 @@ public sealed partial class VpnCore
 
             var tasks = new Task<int>[list.Count];
             for (var i = 0; i < list.Count; i++) tasks[i] = valid[i] ? Measure(ports[i]) : Task.FromResult(-1);
-            Task.WaitAll(tasks, 9000);
+            Task.WaitAll(tasks, 7500);   // этап 1: все узлы параллельно, у каждого свои таймауты по 3 с
             var snapshot = new Dictionary<string, int>();
             for (var i = 0; i < list.Count; i++)
             {
@@ -104,10 +120,21 @@ public sealed partial class VpnCore
                 res[list[i].Guid] = ms;
                 snapshot[list[i].Guid] = ms;
             }
+
+            // этап 2: рабочие узлы проверяем ещё и на YouTube (тоже параллельно)
+            var passed = Enumerable.Range(0, list.Count).Where(i => snapshot[list[i].Guid] > 0).ToList();
+            var checks = passed.Select(i => Verify(ports[i])).ToArray();
+            if (checks.Length > 0) Task.WaitAll(checks, 4500);
+            var fullOk = new HashSet<string>();
+            for (var k = 0; k < passed.Count; k++)
+                if (checks[k].IsCompletedSuccessfully && checks[k].Result) fullOk.Add(list[passed[k]].Guid);
+
             lock (_pings)
             {
                 _pings.Clear();
                 foreach (var kv in snapshot) _pings[kv.Key] = kv.Value;
+                _verified.Clear();
+                foreach (var g in fullOk) _verified.Add(g);
             }
         }
         catch (Exception ex) { Log.Write("auto probe: " + ex.Message); }
@@ -120,27 +147,43 @@ public sealed partial class VpnCore
         return res;
     }
 
-    /// <summary>Реальная задержка через туннель: первый запрос поднимает соединение, второй меряет время ответа.</summary>
+    /// <summary>
+    /// Этап 1. Реальная задержка через туннель: первый запрос поднимает соединение, второй меряет время ответа.
+    /// Рабочим считается только ответ 204 (страница-заглушка или перехват провайдера дают 200/302 — это провал).
+    /// </summary>
     private static async Task<int> Measure(int port)
     {
         try
         {
             using var h = new HttpClientHandler { Proxy = new WebProxy($"http://127.0.0.1:{port}"), UseProxy = true };
-            using var http = new HttpClient(h) { Timeout = TimeSpan.FromSeconds(6) };
+            using var http = new HttpClient(h) { Timeout = TimeSpan.FromMilliseconds(ProbeTimeoutMs) };
             var sw = Stopwatch.StartNew();
             using (var r1 = await http.GetAsync(ProbeUrl))
-                if ((int)r1.StatusCode >= 400) return -1;
+                if (r1.StatusCode != HttpStatusCode.NoContent) return -1;
             var firstMs = (int)sw.ElapsedMilliseconds;
             sw.Restart();
             try
             {
                 using var r2 = await http.GetAsync(ProbeUrl);
-                if ((int)r2.StatusCode >= 400) return Math.Max(1, firstMs);
+                if (r2.StatusCode != HttpStatusCode.NoContent) return Math.Max(1, firstMs);
             }
             catch { return Math.Max(1, firstMs); }
             return Math.Max(1, (int)sw.ElapsedMilliseconds);
         }
         catch { return -1; }
+    }
+
+    /// <summary>Этап 2: через узел открывается YouTube (generate_204 → 204, таймаут 3 с).</summary>
+    private static async Task<bool> Verify(int port)
+    {
+        try
+        {
+            using var h = new HttpClientHandler { Proxy = new WebProxy($"http://127.0.0.1:{port}"), UseProxy = true };
+            using var http = new HttpClient(h) { Timeout = TimeSpan.FromMilliseconds(ProbeTimeoutMs) };
+            using var r = await http.GetAsync(VerifyUrl);
+            return r.StatusCode == HttpStatusCode.NoContent;
+        }
+        catch { return false; }
     }
 
     // ───────────── контроль связи, пока VPN включён (только в режиме «Авто») ─────────────
@@ -150,7 +193,7 @@ public sealed partial class VpnCore
         StopHealth();
         if (!State.AutoSelect || State.Servers.Count < 2) return;
         _healthFails = 0;
-        _health = new System.Threading.Timer(_ => HealthTick(), null, TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(60));
+        _health = new System.Threading.Timer(_ => HealthTick(), null, TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(20));   // 1.4.0: отвал узла замечаем за ~40 с, а не за 2–3 минуты
     }
 
     private void StopHealth()

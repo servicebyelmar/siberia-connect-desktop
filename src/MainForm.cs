@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Microsoft.Web.WebView2.Core;
@@ -44,9 +45,10 @@ public sealed class MainForm : Form
         BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
         // 1.4.0: компактное вертикальное окно «одна кнопка»; размер задаётся при 100% масштаба и растёт по DPI
-        FormBorderStyle = FormBorderStyle.FixedSingle;
+        // бесрамочное окно со скруглёнными углами: шапку и кнопку × рисует сама страница (Compact.js)
+        FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false;
-        ClientSize = new Size(360, 620);
+        ClientSize = new Size(360, 640);
         MinimumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
@@ -117,10 +119,48 @@ public sealed class MainForm : Form
         base.SetVisibleCore(value);
     }
 
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var cp = base.CreateParams;
+            cp.Style |= 0x00020000;   // WS_MINIMIZEBOX: без рамки окно всё равно сворачивается кликом по значку на панели задач
+            return cp;
+        }
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
         ApplyBackdrop();
+        ApplyShape();
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        ApplyShape();
+    }
+
+    [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>Скруглённые углы (радиус 18 px при 100% масштаба) — одинаково на Windows 10 и 11.</summary>
+    private void ApplyShape()
+    {
+        if (!IsHandleCreated || Width < 40 || Height < 40) return;
+        try
+        {
+            int d = (int)Math.Round(36 * DeviceDpi / 96.0);
+            using var gp = new System.Drawing.Drawing2D.GraphicsPath();
+            gp.AddArc(0, 0, d, d, 180, 90);
+            gp.AddArc(Width - d, 0, d, d, 270, 90);
+            gp.AddArc(Width - d, Height - d, d, d, 0, 90);
+            gp.AddArc(0, Height - d, d, d, 90, 90);
+            gp.CloseFigure();
+            Region = new Region(gp);
+        }
+        catch (Exception ex) { Log.Write("shape: " + ex.Message); }
     }
 
     // ───────────────────────── 1.1.0: стекло Windows 11 ─────────────────────────
@@ -128,7 +168,7 @@ public sealed class MainForm : Form
     private void ApplyBackdrop()
     {
         if (!IsHandleCreated) return;
-        _glass = WindowFx.Apply(Handle, Core?.State.Backdrop);
+        _glass = WindowFx.Apply(Handle, WindowFx.Off);   // 1.4.0: окно без рамки — сплошной фон, без Mica/Acrylic
         // чёрный фон формы под расширенной рамкой DWM = прозрачный → видно Mica/Acrylic
         BackColor = _glass ? Color.Black : WindowFx.Brand;
         try { _web.DefaultBackgroundColor = _glass ? Color.Transparent : WindowFx.Brand; }
@@ -323,15 +363,7 @@ public sealed class MainForm : Form
         if (e.CloseReason == CloseReason.UserClosing && !_exiting)
         {
             e.Cancel = true;
-            Hide();
-            if (!_trayHint)
-            {
-                _trayHint = true;
-                _tray.ShowBalloonTip(4000, "Siberia Connect",
-                    Core.Running ? "VPN продолжает работать. Приложение в трее — значок со снежинкой у часов."
-                                 : "Приложение свернулось в трей — значок со снежинкой у часов.",
-                    ToolTipIcon.None);
-            }
+            Hide();   // 1.4.0: молча в трей, без всплывающих подсказок
             return;
         }
         base.OnFormClosing(e);
@@ -394,7 +426,7 @@ public sealed class MainForm : Form
         menu.Items.Add(new ToolStripSeparator());
 
         // 1.1.0: оформление окна (только Windows 11 22H2+)
-        var fx = new ToolStripMenuItem("Оформление окна") { Visible = WindowFx.Supported };
+        var fx = new ToolStripMenuItem("Оформление окна") { Visible = false };   // 1.4.0: у бесрамочного окна стекла нет
         foreach (var (id, title) in new[]
                  {
                      (WindowFx.Mica, "Mica — матовое стекло"),
@@ -506,7 +538,7 @@ public sealed class MainForm : Form
         var init = Snapshot();
         init["version"] = AppInfo.Version;
         init["deviceId"] = Core.DeviceId;
-        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString());
+        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString()) + "\n" + AppInfo.ResourceText("Compact.js");
     }
 
     private static bool IsOurs(string uri) =>
@@ -675,6 +707,13 @@ public sealed class MainForm : Form
                 break;
             case "backupRestore":   // 1.1.0
                 BeginInvoke(new Action(BackupRestore));
+                break;
+            case "drag":            // 1.4.0: перетаскивание окна за верхнюю полосу страницы
+                ReleaseCapture();
+                SendMessage(Handle, 0x00A1, (IntPtr)2, IntPtr.Zero);   // WM_NCLBUTTONDOWN, HTCAPTION
+                break;
+            case "hide":            // 1.4.0: кнопка × — молча в трей
+                Hide();
                 break;
             case "reload":
                 try { _web.CoreWebView2.Navigate(Home); } catch { }

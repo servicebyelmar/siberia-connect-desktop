@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Публикация нового Windows-клиента Siberia Connect на сервере.
 #
-#   scripts/publish_win.sh <папка-с-артефактом> [--notes "что нового"] [--min] [--force]
+#   scripts/publish_win.sh <папка-с-артефактом> [--notes "что нового"] [--min] [--force] [--if-newer]
 #
 # В папке — то, что скачано из GitHub Actions («SiberiaConnect-Windows-X.Y.Z»):
 #   SiberiaConnect-Setup-X.Y.Z.exe и update.json (version, sha256, sig).
@@ -14,6 +14,8 @@
 #   5. атомарно заменяет SiberiaConnect-Setup.exe, кладёт SiberiaConnect-Setup-X.Y.Z.exe и ссылку SiberiaConnect-Setup-latest.exe;
 #   6. в самом конце атомарно пишет win.json — с этого момента сайт, /app/dl/, бот и приложения видят новую версию;
 #   7. проверяет раздачу по публичным адресам.
+#   --if-newer: для автодеплоя из GitHub Actions — если на сервере уже такая же или более новая версия, тихо выйти без ошибки.
+#   Если в папке есть SiberiaConnect-Portable-X.Y.Z.zip, он тоже выкладывается как SiberiaConnect-Portable.zip.
 # Перезапуск бота не нужен: win.json и установщик читаются с диска при каждом запросе.
 # version.json (Android) не трогается. min.json меняется только с --min (принудительное обновление до этой версии).
 set -euo pipefail
@@ -23,12 +25,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PUB="${UPDATE_PUBKEY:-$HERE/update_pub.pem}"
 CHECK_URLS="${CHECK_URLS:-https://sibirapp.duckdns.org/app/dl https://sibir-cloud-api.site/dl}"
 
-SRC=""; NOTES=""; SET_MIN=0; FORCE=0
+SRC=""; NOTES=""; SET_MIN=0; FORCE=0; IF_NEWER=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --notes) NOTES="${2:-}"; shift 2 ;;
     --min)   SET_MIN=1; shift ;;
     --force) FORCE=1; shift ;;
+    --if-newer) IF_NEWER=1; shift ;;
     -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) if [ -z "$SRC" ]; then SRC="$1"; shift; else echo "лишний аргумент: $1" >&2; exit 2; fi ;;
   esac
@@ -71,6 +74,10 @@ echo "OK  подпись верна"
 echo "== 3. версия"
 CUR=""; [ -f "$DL/win.json" ] && CUR="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("version",""))' "$DL/win.json" 2>/dev/null || true)"
 echo "сейчас на сервере: ${CUR:-—}, публикуем: $VER"
+if [ -n "$CUR" ] && [ "$IF_NEWER" -eq 1 ] && [ "$(printf '%s\n%s\n' "$CUR" "$VER" | sort -V | tail -1)" = "$CUR" ]; then
+  echo "SKIP: на сервере уже $CUR (не старше $VER) — ничего не меняем"
+  exit 0
+fi
 if [ -n "$CUR" ] && [ "$FORCE" -eq 0 ]; then
   [ "$(printf '%s\n%s\n' "$CUR" "$VER" | sort -V | tail -1)" = "$VER" ] && [ "$CUR" != "$VER" ] \
     || { echo "FAIL: $VER не новее $CUR (нужен --force для отката или повторной выкладки)" >&2; exit 1; }
@@ -79,7 +86,7 @@ fi
 echo "== 4. резервная копия"
 BK="${DL}.bak_win_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BK"
-for f in win.json SiberiaConnect-Setup.exe min.json; do [ -e "$DL/$f" ] && cp -a "$DL/$f" "$BK/" || true; done
+for f in win.json SiberiaConnect-Setup.exe SiberiaConnect-Portable.zip min.json; do [ -e "$DL/$f" ] && cp -a "$DL/$f" "$BK/" || true; done
 echo "OK  $BK"
 
 echo "== 5. файлы"
@@ -92,15 +99,24 @@ mv -f "$DL/.SiberiaConnect-Setup-$VER.exe.tmp" "$DL/SiberiaConnect-Setup-$VER.ex
 mv -f "$DL/.SiberiaConnect-Setup.exe.tmp" "$DL/SiberiaConnect-Setup.exe"
 ln -sfn "SiberiaConnect-Setup-$VER.exe" "$DL/.latest.tmp"
 mv -T -f "$DL/.latest.tmp" "$DL/SiberiaConnect-Setup-latest.exe"
+PORT="$SRC/SiberiaConnect-Portable-$VER.zip"
+if [ -f "$PORT" ]; then
+  cp "$PORT" "$DL/.SiberiaConnect-Portable.zip.tmp"
+  chmod 644 "$DL/.SiberiaConnect-Portable.zip.tmp"
+  chown --reference="$REF" "$DL/.SiberiaConnect-Portable.zip.tmp" 2>/dev/null || true
+  mv -f "$DL/.SiberiaConnect-Portable.zip.tmp" "$DL/SiberiaConnect-Portable.zip"
+  echo "OK  SiberiaConnect-Portable.zip (без подписи: проверяется только сборкой CI)"
+fi
 # оставляем три последних версионных файла для отката
 ls -1t "$DL"/SiberiaConnect-Setup-[0-9]*.exe 2>/dev/null | tail -n +4 | xargs -r rm -f --
 echo "OK  SiberiaConnect-Setup.exe, SiberiaConnect-Setup-$VER.exe, SiberiaConnect-Setup-latest.exe"
 
 echo "== 6. win.json (последним: после него версию видят все)"
 python3 - "$DL" "$VER" "$SHA" "$SIG" "$SIZE" "$NOTES" "$SET_MIN" <<'PY'
-import json, os, sys
+import datetime, json, os, sys
 dl, ver, sha, sig, size, notes, set_min = sys.argv[1:8]
-d = {"version": ver, "sha256": sha, "sig": sig, "size": int(size)}
+d = {"version": ver, "sha256": sha, "sig": sig, "size": int(size),
+     "released": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")}
 if notes:
     d["notes"] = notes
 tmp = os.path.join(dl, ".win.json.tmp")

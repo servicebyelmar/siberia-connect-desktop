@@ -43,22 +43,15 @@ public sealed class MainForm : Form
         Icon = _iconOn;
         BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(1040, 680);
-        MinimumSize = new Size(760, 560);
+        // 1.4.0: компактное вертикальное окно «одна кнопка»; размер задаётся при 100% масштаба и растёт по DPI
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
+        ClientSize = new Size(360, 620);
+        MinimumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
-        // 1.0.2: фирменная заставка на доли секунды, пока поднимается интерфейс
-        _splash = new Panel { Dock = DockStyle.Fill, BackColor = WindowFx.Brand };
-        var logo = new PictureBox { Size = new Size(120, 120), SizeMode = PictureBoxSizeMode.Zoom, Image = AppInfo.LoadBitmap(), BackColor = Color.Transparent };
-        var title = new Label { Text = "Siberia Connect", AutoSize = true, ForeColor = Color.White, BackColor = Color.Transparent,
-            Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold) };
-        _splash.Controls.Add(logo);
-        _splash.Controls.Add(title);
-        _splash.Resize += (_, _) =>
-        {
-            logo.Location = new Point((_splash.ClientSize.Width - logo.Width) / 2, _splash.ClientSize.Height / 2 - logo.Height + 10);
-            title.Location = new Point((_splash.ClientSize.Width - title.Width) / 2, logo.Bottom + 18);
-        };
+        // 1.4.0: арктическая заставка (assets/splash.png — ледокол; пока файла нет, рисуется заготовка с логотипом)
+        _splash = new SplashPanel();
         Controls.Add(_splash);
         _splash.BringToFront();
         ResumeLayout(false);
@@ -308,7 +301,7 @@ public sealed class MainForm : Form
             int w = Math.Min(Width, wa.Width - 40), h = Math.Min(Height, wa.Height - 40);
             if (w != Width || h != Height)
             {
-                Size = new Size(Math.Max(w, 640), Math.Max(h, 480));
+                Size = new Size(Math.Max(w, 360), Math.Max(h, 480));
                 Location = new Point(wa.Left + (wa.Width - Width) / 2, wa.Top + (wa.Height - Height) / 2);
             }
         }

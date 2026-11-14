@@ -128,6 +128,7 @@ public sealed class AppState
     public bool TunMode { get; set; }   // 1.0.2: «Весь компьютер»
     public string Backdrop { get; set; } = WindowFx.Mica;   // 1.1.0: mica | acrylic | off
     public bool AutoSelect { get; set; } = true;            // 1.2.0: «Северное Сияние (Авто)» — по умолчанию
+    public bool AutoUpdate { get; set; } = true;            // 1.4.0: тихое автообновление — по умолчанию включено
     public string InstallSecret { get; set; } = "";         // 1.3.0: секрет установки (вход без Telegram)
     public string AuthToken { get; set; } = "";             // 1.3.0: общий вход приложения и кабинета
     public bool AutoRegDone { get; set; }

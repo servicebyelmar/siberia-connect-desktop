@@ -165,6 +165,8 @@ internal static class XrayConfig
         var net = G("type", "tcp").ToLowerInvariant();
         var sec = G("security", "none").ToLowerInvariant();
         var stream = new JsonObject { ["network"] = net, ["security"] = sec };
+        // 1.4.1: TCP keep-alive со стороны клиента (как на серверах): NAT роутера или оператора и ТСПУ не закрывают простаивающие соединения по таймауту
+        stream["sockopt"] = new JsonObject { ["tcpKeepAliveIdle"] = 30, ["tcpKeepAliveInterval"] = 15 };
 
         if (sec == "reality")
         {

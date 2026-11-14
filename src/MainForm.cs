@@ -27,7 +27,6 @@ public sealed class MainForm : Form
     private bool _exiting;
     private bool _ready;
     private bool _webStarted;
-    private bool _trayHint;
     private bool _glass;   // 1.1.0: Mica/Acrylic включён
 
     private readonly Panel _splash;

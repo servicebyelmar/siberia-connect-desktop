@@ -62,6 +62,7 @@ public sealed class MainForm : Form
         Core.TokenChanged += t => Ui(() => PushToken(t));
 
         SetupTray();
+        StartUpdateTimer();
         _stats.Tick += (_, _) => PushStats();
         _refresh = new System.Threading.Timer(_ =>
         {
@@ -671,19 +672,18 @@ public sealed class MainForm : Form
                 catch { try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.Logs}\"") { UseShellExecute = true }); } catch { } }
                 break;
             case "installUpdate":
+                StartInstall();
+                break;
+            case "checkUpdate":     // 1.4.0: кнопка «Проверить обновления»
+                _ = CheckUpdate(true);
+                break;
+            case "autoUpdate":      // 1.4.0: галочка «Автообновление»
             {
-                var reconnect = Core.Running;
-                Task.Run(async () =>
-                {
-                    var err = await Updater.Install(reconnect,
-                        p => Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "download", ["pct"] = p })));
-                    Ui(() =>
-                    {
-                        if (err != null) { Emit(new JsonObject { ["type"] = "update", ["stage"] = "error", ["text"] = err }); return; }
-                        Emit(new JsonObject { ["type"] = "update", ["stage"] = "install" });
-                        ExitApp();   // установщик заменит файлы и сам запустит новую версию
-                    });
-                });
+                var on = A(0) == "true";
+                Core.State.AutoUpdate = on;
+                Core.State.Save();
+                PushSnapshot();
+                if (on && _updM != null) _ = AutoFlow(_updM);
                 break;
             }
             case "authToken":       // 1.3.0: кабинет вошёл/вышел
@@ -718,6 +718,77 @@ public sealed class MainForm : Form
                 try { _web.CoreWebView2.Navigate(Home); } catch { }
                 break;
         }
+    }
+
+    // ───────────────────────── 1.4.0: тихое автообновление ─────────────────────────
+
+    private Updater.Manifest _updM;
+    private int _updBusy;
+    private System.Threading.Timer _updTimer;
+
+    /// <summary>Проверка win.json в фоне: через 20 секунд после старта и затем раз в 6 часов (запуск окна не задерживается).</summary>
+    private void StartUpdateTimer()
+    {
+        _updTimer = new System.Threading.Timer(_ => { _ = CheckUpdate(false); }, null, TimeSpan.FromSeconds(20), TimeSpan.FromHours(6));
+    }
+
+    private async Task CheckUpdate(bool manual)
+    {
+        if (Interlocked.Exchange(ref _updBusy, 1) == 1) return;
+        try
+        {
+            var m = await Updater.Check();
+            _updM = m;
+            if (m == null)
+            {
+                Ui(() =>
+                {
+                    PushSnapshot();
+                    if (manual) Emit(new JsonObject { ["type"] = "update", ["stage"] = "none" });
+                });
+                return;
+            }
+            Log.Write($"update: на сервере {m.Version}, у нас {AppInfo.Version}");
+            Ui(() =>
+            {
+                PushSnapshot();
+                Emit(new JsonObject { ["type"] = "update", ["stage"] = "available", ["version"] = m.Version });
+            });
+            if (Core.State.AutoUpdate) await AutoFlow(m);
+        }
+        catch (Exception ex) { Log.Write("update check: " + ex.Message); }
+        finally { Interlocked.Exchange(ref _updBusy, 0); }
+    }
+
+    /// <summary>Автообновление: скачать и проверить заранее. Окно в трее — ставим сразу, открыто — предлагаем «Перезапустить».</summary>
+    private async Task AutoFlow(Updater.Manifest m)
+    {
+        var err = await Updater.Download(m, p => Ui(() =>
+        {
+            if (Visible) Emit(new JsonObject { ["type"] = "update", ["stage"] = "download", ["pct"] = p });
+        }));
+        if (err != null) { Log.Write("auto-update: " + err); return; }
+        Ui(() =>
+        {
+            Emit(new JsonObject { ["type"] = "update", ["stage"] = "ready", ["version"] = m.Version });
+            if (!Visible && !Core.Busy) StartInstall();   // установщик сам закроет приложение, поставит файлы, запустит новую версию (и подключение, если VPN был включён)
+        });
+    }
+
+    private void StartInstall()
+    {
+        var reconnect = Core.Running;
+        Task.Run(async () =>
+        {
+            var err = await Updater.Install(reconnect,
+                p => Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "download", ["pct"] = p })));
+            Ui(() =>
+            {
+                if (err != null) { Emit(new JsonObject { ["type"] = "update", ["stage"] = "error", ["text"] = err }); return; }
+                Emit(new JsonObject { ["type"] = "update", ["stage"] = "install" });
+                ExitApp();   // установщик заменит файлы и сам запустит новую версию
+            });
+        });
     }
 
     private void OnCoreEvent(JsonObject ev)
@@ -778,6 +849,8 @@ public sealed class MainForm : Form
             ["glass"] = _glass,
             ["backdrop"] = WindowFx.Normalize(Core.State.Backdrop),
             ["backdropSupported"] = WindowFx.Supported,
+            ["update"] = _updM?.Version ?? "",
+            ["autoUpdate"] = Core.State.AutoUpdate,
             ["stats"] = StatsJson()
         };
     }

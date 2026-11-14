@@ -1,0 +1,10 @@
+[Unit]
+Description=Siberia Connect · автовыкладка Windows-клиента из GitHub-релиза (подпись проверяется)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/sibirconnect/scripts/sync_win_from_github.sh
+Nice=10
+TimeoutStartSec=1800

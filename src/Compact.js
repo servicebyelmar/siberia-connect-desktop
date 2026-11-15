@@ -55,7 +55,22 @@
     'html.win.scc .worbw{width:min(250px,calc(100vh - 400px));height:min(250px,calc(100vh - 400px));aspect-ratio:auto;flex:none;margin:14px auto}',
     'html.win.scc .wtitle{font-size:22px;margin:0;line-height:1.2}',
     'html.win.scc .wact{margin:8px 0 0;min-height:0}',
-    'html.win.scc .wact:empty{display:none}',
+    /* v-fix: «снежинка» не двигается при смене состояния (Connected/Connecting/Off).
+       Кнопка жёстко центрируется внутри контейнера фиксированного размера (inset, а не flow/transform),
+       место под заголовок и кнопки действий зарезервировано — высота группы не меняется,
+       поэтому flex-распорки не сдвигают кнопку; полоса прокрутки не может «уехать» вбок. */
+    'html.win.scc,html.win.scc body{overflow-x:hidden;scrollbar-gutter:stable both-edges}',
+    /* корень бага: .wdash{align-items:start} + flex-колонка → .wcenter сжималась по ширине содержимого
+       (заголовок/кнопки/таймер), и кнопка, центрированная в ней, «ехала» вправо при смене состояния */
+    'html.win.scc .wdash{align-items:stretch;width:100%}',
+    'html.win.scc .wcenter{align-items:center;align-self:stretch;width:100%;min-width:0}',
+    'html.win.scc .wcenter>.wstats,html.win.scc .wcenter>.wsrv{align-self:stretch}',
+    'html.win.scc .worbw{display:block;position:relative;align-self:center;margin-left:auto;margin-right:auto;contain:layout}',
+    'html.win.scc .worb{position:absolute;inset:12%;width:auto;height:auto;margin:0;display:block}',
+    'html.win.scc .worb>svg{position:absolute;inset:21%;width:58%;height:58%;transform-origin:50% 50%}',
+    'html.win.scc .wtitle{height:27px;line-height:27px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}',
+    'html.win.scc .wact{height:40px;min-height:40px;margin:8px 0 0;align-items:center}',
+    'html.win.scc .wact:empty{display:flex}',
     'html.win.scc .wact .wbtn{padding:9px 16px;font-size:13px}',
     /* «Мой IP» одной строкой под кнопкой */
     'html.win.scc .wright{display:block!important;padding:0!important;margin:0}',

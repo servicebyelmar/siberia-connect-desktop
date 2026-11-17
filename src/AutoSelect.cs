@@ -375,7 +375,7 @@ public sealed partial class VpnCore
             if (Ping204(_httpPort).GetAwaiter().GetResult())
             {
                 _healthFails = 0;
-                if (force || n % 4 == 0)
+                if (force || n % 20 == 0)      // раз в 5 минут (~37 МБ/сутки), а не каждую минуту — не жжём мобильный трафик
                 {
                     if (Bulk(_httpPort).GetAwaiter().GetResult()) _bulkFails = 0;
                     else if (++_bulkFails >= 2)

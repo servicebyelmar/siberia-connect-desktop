@@ -106,32 +106,69 @@ public sealed partial class VpnCore
         return true;
     }
 
-    /// <summary>Кабинет вошёл или вышел — запоминаем его токен (один аккаунт на всё приложение).</summary>
+    /// <summary>1.5.0: полный выход (ручной, 401, аккаунт удалён) — для интерфейса: закрыть окна, очистить страницу.</summary>
+    public event Action<string> LoggedOut;
+
+    /// <summary>
+    /// Кабинет вошёл или вышел. 1.5.0: приложение — источник истины. Отозванный токен (DeadToken) обратно не принимаем,
+    /// выход кабинета = полный выход приложения.
+    /// </summary>
     public void AdoptToken(string token)
     {
         token = (token ?? "").Trim();
         if (token.Length > 100 || token == (State.AuthToken ?? "")) return;
+        if (token == "") { Logout("кабинет"); return; }
+        if (token == State.DeadToken) { Log.Write("auth: страница вернула отозванный токен — игнорирую"); return; }
         State.AuthToken = token;
         State.AutoRegDone = true;
         State.TokenFromInstall = false;   // вход из кабинета (Telegram или код) — по секрету установки его не подменяем
-        if (token == "") Account = null;
+        State.DeadToken = "";
         State.Save();
-        Log.Write(token == "" ? "auth: выход из кабинета" : "auth: вход из кабинета");
+        Log.Write("auth: вход из кабинета");
+        Task.Run(() => { try { CheckStatus(); } catch (Exception ex) { Log.Write("auth: " + ex.Message); } });   // сразу берём ключ этого входа
+    }
+
+    /// <summary>
+    /// 1.5.0: атомарный выход — VPN выключается, токен, ключ, список серверов и конфиги ядра стираются одним сохранением.
+    /// Секрет установки остаётся (это не вход), автосоздание гостя не повторяется.
+    /// </summary>
+    public void Logout(string reason)
+    {
+        var old = State.AuthToken ?? "";
+        if (Running) Disconnect();
+        lock (_gate)
+        {
+            if (!string.IsNullOrEmpty(old)) State.DeadToken = old;
+            State.AuthToken = "";
+            State.TokenFromInstall = false;
+            State.AutoRegDone = true;
+            State.LoginCode = "";
+            State.SubUrl = "";
+            State.Servers = new List<ServerItem>();
+            State.Selected = "";
+            State.LastUpdate = DateTime.MinValue;
+            State.Save();
+            Account = null;
+            ActiveGuid = "";
+        }
+        lock (_pings) { _pings.Clear(); _verified.Clear(); _foreign.Clear(); }
+        lock (_frozen) _frozen.Clear();
+        foreach (var f in new[] { Paths.CoreConfig, Paths.TunConfig }) { try { if (File.Exists(f)) File.Delete(f); } catch { } }
+        Log.Write("auth: выход (" + reason + ") — вход, ключ и серверы очищены");
+        LoggedOut?.Invoke(reason);
     }
 
     /// <summary>Единый статус. null — проверить не удалось (нет связи или нет входа): подключаемся как раньше.</summary>
     public JsonObject CheckStatus()
     {
         if (string.IsNullOrEmpty(State.AuthToken)) return null;
-        var body = new JsonObject { ["did"] = DeviceId, ["platform"] = "windows" };
+        var body = new JsonObject { ["did"] = DeviceId, ["platform"] = "windows", ["device_name"] = Environment.MachineName };
         var (code, r) = Api.Post("status", body, State.AuthToken);
         if (code == 401)
         {
             // сессия истекла или аккаунт связали с Telegram: заходим заново по секрету установки
             if (State.TokenFromInstall && !string.IsNullOrEmpty(State.InstallSecret) && AutoRegister()) return Account;
-            State.AuthToken = "";
-            State.Save();
-            TokenChanged?.Invoke("");
+            Logout("сессия закончилась");
             return null;
         }
         if (code != 200 || r?["status"] is not JsonObject st) return null;
@@ -159,17 +196,95 @@ public sealed partial class VpnCore
     private string AccountGate()
     {
         JsonObject st;
+        var had = !string.IsNullOrEmpty(State.AuthToken);
         try { st = CheckStatus(); }
         catch (Exception ex) { Log.Write("auth: " + ex.Message); return null; }
+        if (had && string.IsNullOrEmpty(State.AuthToken)) return "Вход закончился — войди снова";   // 1.5.0: 401 → выход, старым ключом не подключаемся
         if (st == null) return null;
         var state = Api.S(st, "state");
         if (state is "expired" or "blocked" or "device_limit" or "no_account")
         {
             var msg = Api.S(st, "message");
             Changed?.Invoke(new JsonObject { ["type"] = "account", ["state"] = state, ["message"] = msg });
+            if (state == "no_account") Logout("аккаунт не найден");
             return string.IsNullOrEmpty(msg) ? "Нет активной подписки" : msg;
         }
         return null;
+    }
+
+    /// <summary>
+    /// 1.5.0: пока VPN включён — раз в 3 минуты спрашиваем статус. Ключ перевыпустили — ставим новый сами (UpdateSub
+    /// переподключит, если старого сервера больше нет); подписка кончилась / заблокирован — выключаем VPN с понятной причиной,
+    /// а не держим «Подключено» без трафика; 401 — полный выход.
+    /// </summary>
+    internal void WatchStatus()
+    {
+        if (string.IsNullOrEmpty(State.AuthToken) || Busy) return;
+        var st = CheckStatus();
+        if (st == null) return;
+        var state = Api.S(st, "state");
+        if (state is "expired" or "blocked" or "device_limit" or "no_account")
+        {
+            var msg = Api.S(st, "message");
+            Log.Write($"status: {state} — выключаю VPN");
+            if (Running) Disconnect();
+            Changed?.Invoke(new JsonObject { ["type"] = "account", ["state"] = state, ["message"] = msg });
+            FireError(string.IsNullOrEmpty(msg) ? "Нет активной подписки" : msg);
+            if (state == "no_account") Logout("аккаунт не найден");
+        }
+    }
+
+    /// <summary>
+    /// 1.5.0: умный ввод — ключ vless://, ссылка подписки, код VPN-XXXX-XXXX, код восстановления SC-XXXXX-XXXXX или номер подписки.
+    /// Сервер сам определяет тип (/v1/redeem). Номер — с подтверждением в Telegram (опрос до 5 минут).
+    /// progress: {type:'redeem', stage:'busy|wait_tg|ok|error', message}.
+    /// </summary>
+    public void Redeem(string input, Action<JsonObject> progress)
+    {
+        JsonObject Ev(string stage, string msg) => new() { ["type"] = "redeem", ["stage"] = stage, ["message"] = msg ?? "" };
+        input = (input ?? "").Trim();
+        if (input.Length == 0) { progress(Ev("error", "Вставь ключ, код или номер подписки")); return; }
+        progress(Ev("busy", ""));
+        var body = new JsonObject { ["input"] = input, ["did"] = DeviceId, ["platform"] = "windows", ["device_name"] = Environment.MachineName };
+        var (code, r) = Api.Post("redeem", body);
+        if (code == 0) { progress(Ev("error", "Нет связи с сервером. Проверь интернет и повтори")); return; }
+        if (r?["need"] is JsonValue && Api.S(r, "need") == "telegram")
+        {
+            var req = Api.S(r, "req");
+            progress(Ev("wait_tg", Api.S(r, "message")));
+            var until = DateTime.UtcNow.AddMinutes(5);
+            while (DateTime.UtcNow < until)
+            {
+                Thread.Sleep(2000);
+                var (c2, r2) = Api.Post("redeem/poll", new JsonObject { ["req"] = req });
+                if (c2 == 0 || r2 == null || r2["wait"] is JsonValue) continue;
+                code = c2; r = r2;
+                break;
+            }
+            if (r?["wait"] is JsonValue) { progress(Ev("error", "Время на подтверждение вышло — попробуй ещё раз")); return; }
+        }
+        var tok = Api.S(r, "token");
+        if (code != 200 || string.IsNullOrEmpty(tok))
+        {
+            var err = Api.S(r, "error");
+            progress(Ev("error", string.IsNullOrEmpty(err) ? "Не удалось войти — проверь, что вставил ключ или код целиком" : err));
+            return;
+        }
+        lock (_gate)
+        {
+            State.AuthToken = tok;
+            State.TokenFromInstall = false;
+            State.AutoRegDone = true;
+            State.DeadToken = "";
+            State.Save();
+        }
+        Log.Write($"auth: вход через умный ввод ({Api.S(r, "kind")})");
+        TokenChanged?.Invoke(tok);
+        var link = Api.S(r, "link");
+        if (IsAllowedSubUrl(link) && link != State.SubUrl) UpdateSub(link);
+        else { try { CheckStatus(); } catch { } }
+        var st = Api.S(r, "state");
+        progress(Ev("ok", st is "" or "active" ? "Готово — можно подключаться" : Api.S(r, "message")));
     }
 
     /// <summary>Код для связки с Telegram: (код, ссылка на бота) или текст ошибки.</summary>

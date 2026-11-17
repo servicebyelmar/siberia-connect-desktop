@@ -237,31 +237,58 @@ public sealed partial class VpnCore
                 if (gate != null) { FireError(gate); return; }
                 srv = State.Servers.FirstOrDefault(s => s.Guid == State.Selected) ?? State.Servers.FirstOrDefault() ?? srv;
                 var auto = State.AutoSelect && State.Servers.Count > 1;
-                if (auto)
+                // 1.2.0: «Северное Сияние» — реальная проверка всех серверов (1.4.0: только узлы с ответом 204)
+                // 1.5.0: рейтинг целиком; узел, обрывающий поток на объёме, «замораживается» — берём следующий (до 3 попыток)
+                var cands = auto ? RankAuto() : new List<ServerItem> { srv };
+                if (cands.Count == 0)
                 {
-                    srv = PickAuto();   // 1.2.0: «Северное Сияние» — реальная проверка всех серверов (1.4.0: только узлы с ответом 204)
-                    if (srv == null)
-                    {
-                        Log.Write("auto: ни один узел не отдал 204 — не подключаемся");
-                        FireError("Серверы перегружены или нет сети. Проверь интернет и попробуй ещё раз");
-                        return;
-                    }
-                }
-                var err = StartCore(srv, true);
-                if (err != null)
-                {
-                    Log.Write("start with geo failed: " + err + " — retry without geo");
-                    err = StartCore(srv, false);
-                }
-                if (err != null) { FireError(err); return; }
-                if (!auto && !VerifyCore())
-                {
-                    // 1.4.0: один сервер — тоже проверяем реальный трафик, чтобы не показывать «Подключено» впустую
-                    Log.Write("connect: сервер не отдал 204 — отключаю");
-                    StopProc();
-                    FireError("Сервер не пропускает трафик: перегружен или нет сети. Выбери другой сервер или включи «Северное Сияние (Авто)»");
+                    Log.Write("auto: ни один узел не отдал 204 — не подключаемся");
+                    FireError("Серверы перегружены или нет сети. Проверь интернет и попробуй ещё раз");
                     return;
                 }
+                string err = null;
+                ServerItem chosen = null;
+                foreach (var c in cands.Take(auto ? 3 : 1))
+                {
+                    err = StartCore(c, true);
+                    if (err != null)
+                    {
+                        Log.Write("start with geo failed: " + err + " — retry without geo");
+                        err = StartCore(c, false);
+                    }
+                    if (err != null) continue;
+                    if (!VerifyCore())
+                    {
+                        // 1.4.0: проверяем реальный трафик, чтобы не показывать «Подключено» впустую
+                        Log.Write($"connect: {c.Name} не отдал 204");
+                        StopProc();
+                        err = "no204";
+                        continue;
+                    }
+                    if (auto && !Bulk(_httpPort).GetAwaiter().GetResult())
+                    {
+                        Log.Write($"connect: {c.Name} — 204 есть, объём обрывается (заморозка) — следующий узел");
+                        Freeze(c.Guid);
+                        StopProc();
+                        err = "freeze";
+                        continue;
+                    }
+                    chosen = c;
+                    break;
+                }
+                if (chosen == null)
+                {
+                    FireError(err switch
+                    {
+                        "no204" => auto ? "Серверы не пропускают трафик: перегружены или нет сети. Попробуй ещё раз"
+                                        : "Сервер не пропускает трафик: перегружен или нет сети. Выбери другой сервер или включи «Северное Сияние (Авто)»",
+                        "freeze" => "Соединение обрывается провайдером на всех проверенных серверах. Попробуй ещё раз через минуту",
+                        null => "Не удалось подключиться",
+                        _ => err
+                    });
+                    return;
+                }
+                srv = chosen;
                 if (State.TunMode && Elevation.IsAdmin)
                 {
                     var tunIps = TunConfigBuilder.ServerIps(srv.Uri);

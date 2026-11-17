@@ -28,12 +28,15 @@
   document.addEventListener('DOMContentLoaded', glass);
 
   /* 1.3.0: один вход на приложение и кабинет (localStorage 'sc_tok').
-     Нет входа в кабинете, а у приложения есть — кладём до загрузки страницы; кабинет вошёл/вышел — сообщаем приложению. */
+     1.5.0: источник истины — приложение (S — свежий снимок: скрипт перерегистрируется при каждой смене входа).
+     У приложения есть вход — кабинет получает именно его (старый токен страницы не может «вернуть» отозванный вход);
+     отозванный токен (deadTok) убираем; входа у приложения нет, а кабинет вошёл сам — сообщаем приложению. */
   try {
-    var cur = localStorage.getItem('sc_tok') || '';
-    if (!cur && S.appToken) localStorage.setItem('sc_tok', S.appToken);
-    else if (cur && cur !== S.appToken) send('authToken', [cur]);
     var _si = Storage.prototype.setItem, _ri = Storage.prototype.removeItem;
+    var cur = localStorage.getItem('sc_tok') || '';
+    if (cur && S.deadTok && cur === S.deadTok) { _ri.call(localStorage, 'sc_tok'); cur = ''; }
+    if (S.appToken && cur !== S.appToken) _si.call(localStorage, 'sc_tok', S.appToken);
+    else if (!S.appToken && cur) { S.appToken = cur; send('authToken', [cur]); }
     Storage.prototype.setItem = function (k, v) {
       var r = _si.apply(this, arguments);
       try { if (this === window.localStorage && k === 'sc_tok' && String(v) !== S.appToken) { S.appToken = String(v); send('authToken', [String(v)]); } } catch (e) {}
@@ -75,6 +78,10 @@
     /* 1.3.0 */
     account: function () { return S.account || ''; },               // active | expired | blocked | device_limit | ''
     linkTelegram: function () { send('linkTelegram'); },
+    /* 1.5.0: одно поле — ключ vless://, ссылка подписки, код VPN-XXXX-XXXX, SC-XXXXX-XXXXX или номер подписки.
+       Ответ — событие {type:'redeem', stage:'busy|wait_tg|ok|error', message} */
+    redeem: function (text) { send('redeem', [String(text || '')]); },
+    loggedIn: function () { return !!S.appToken; },
     /* 1.2.0: «Северное Сияние (Авто)». В servers() первым идёт {guid:'auto', auto:true};
        у серверов есть ping (мс, -1 — нет связи, 0 — не проверяли) и active (через него подключены сейчас) */
     autoMode: function () { return !!S.auto; },

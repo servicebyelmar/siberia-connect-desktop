@@ -33,7 +33,75 @@ public sealed partial class VpnCore
     private System.Threading.Timer _health;
     private int _healthBusy;
     private int _healthFails;
+    private int _healthN;
+    private int _bulkFails;
+    private long _lastKick;
     private DateTime _lastFailover = DateTime.MinValue;
+
+    /// <summary>
+    /// 1.5.0: узлы, где 204 проходит, но поток обрывается на объёме (заморозка ТСПУ после ~16 КБ) — на 10 минут
+    /// уходят в конец очереди «Авто».
+    /// </summary>
+    private readonly Dictionary<string, DateTime> _frozen = new();
+    private static readonly string[] BulkUrls =
+    {
+        "https://speed.cloudflare.com/__down?bytes=131072",
+        "https://proof.ovh.net/files/1Mb.dat"
+    };
+    private const int BulkBytes = 120_000;
+
+    private void Freeze(string guid)
+    {
+        if (string.IsNullOrEmpty(guid)) return;
+        lock (_frozen) _frozen[guid] = DateTime.UtcNow.AddMinutes(10);
+    }
+
+    private bool IsFrozen(string guid)
+    {
+        lock (_frozen) return _frozen.TryGetValue(guid, out var t) && t > DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// 1.5.0: через туннель реально проходит объём (~128 КБ за 8 с), а не только крошечный ответ 204.
+    /// Два адреса: если один из них недоступен сам по себе, второй всё равно покажет правду.
+    /// </summary>
+    private static async Task<bool> Bulk(int port)
+    {
+        foreach (var url in BulkUrls)
+        {
+            try
+            {
+                using var http = ViaPort(port, 8000);
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 131071);
+                using var r = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+                if (!r.IsSuccessStatusCode) continue;
+                await using var s = await r.Content.ReadAsStreamAsync();
+                var buf = new byte[16384];
+                var total = 0;
+                int n;
+                while (total < BulkBytes && (n = await s.ReadAsync(buf)) > 0) total += n;
+                if (total >= BulkBytes) return true;
+            }
+            catch { }
+        }
+        return false;
+    }
+
+    /// <summary>1.5.0: сон/пробуждение, смена сети (Wi-Fi ↔ кабель ↔ модем) — проверяем туннель сразу, не ждём 30 секунд.</summary>
+    public void Kick(string why, int delayMs)
+    {
+        if (!Running) return;
+        var now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _lastKick) < 20_000) return;
+        Interlocked.Exchange(ref _lastKick, now);
+        Task.Run(() =>
+        {
+            Thread.Sleep(delayMs);
+            Log.Write("watchdog: проверка после события — " + why);
+            HealthTick(true);
+        });
+    }
 
     /// <summary>Задержка последней проверки, мс. 0 — не проверяли, -1 — сервер не ответил.</summary>
     public int PingOf(string guid)
@@ -47,23 +115,32 @@ public sealed partial class VpnCore
     /// внутри группы — самый быстрый (при почти равной скорости — тот, что выше в подписке).
     /// null — ни один узел не отдал 204: подключаться нельзя, интернета нет или узлы перегружены.
     /// </summary>
-    private ServerItem PickAuto()
+    private ServerItem PickAuto() => RankAuto().FirstOrDefault();
+
+    /// <summary>
+    /// 1.5.0: весь рейтинг рабочих узлов (лучший первым), чтобы при обрыве на объёме перейти к следующему без нового замера.
+    /// «Замороженные» узлы — в конце (если есть другие рабочие).
+    /// </summary>
+    private List<ServerItem> RankAuto()
     {
         var list = State.Servers.ToList();
-        if (list.Count == 0) return null;
+        if (list.Count == 0) return new List<ServerItem>();
         var res = Probe(list);
         HashSet<string> yt, abroad;
         lock (_pings) { yt = new HashSet<string>(_verified); abroad = new HashSet<string>(_foreign); }
         Log.Write("auto: " + string.Join(", ", list.Select(s =>
-            $"{s.Name} = {(res[s.Guid] > 0 ? res[s.Guid] + " мс" + (abroad.Contains(s.Guid) ? " +вне RU" : "") + (yt.Contains(s.Guid) ? " +yt" : "") : "нет 204")}")));
+            $"{s.Name} = {(res[s.Guid] > 0 ? res[s.Guid] + " мс" + (abroad.Contains(s.Guid) ? " +вне RU" : "") + (yt.Contains(s.Guid) ? " +yt" : "") + (IsFrozen(s.Guid) ? " (обрывы)" : "") : "нет 204")}")));
         var ok = list.Select((s, i) => (s, i, ms: res[s.Guid])).Where(x => x.ms > 0).ToList();
-        if (ok.Count == 0) return null;
-        var best3 = ok.Where(x => abroad.Contains(x.s.Guid) && yt.Contains(x.s.Guid)).ToList();
-        var best2 = ok.Where(x => abroad.Contains(x.s.Guid)).ToList();
-        if (best3.Count > 0) ok = best3; else if (best2.Count > 0) ok = best2;
-        var best = ok.Min(x => x.ms);
-        var slack = Math.Max(20, best * 15 / 100);
-        return ok.Where(x => x.ms <= best + slack).OrderBy(x => x.i).First().s;
+        if (ok.Count == 0) return new List<ServerItem>();
+        int Tier(string g) => abroad.Contains(g) && yt.Contains(g) ? 0 : abroad.Contains(g) ? 1 : 2;
+        int Group((ServerItem s, int i, int ms) x) => (IsFrozen(x.s.Guid) ? 10 : 0) + Tier(x.s.Guid);
+        var bestOf = ok.GroupBy(Group).ToDictionary(g => g.Key, g => g.Min(x => x.ms));
+        bool Near((ServerItem s, int i, int ms) x) { var b = bestOf[Group(x)]; return x.ms <= b + Math.Max(20, b * 15 / 100); }
+        return ok
+            .OrderBy(Group)
+            .ThenBy(x => Near(x) ? 0 : 1)                   // почти равные по скорости — по порядку в подписке, остальные — по скорости
+            .ThenBy(x => Near(x) ? x.i : x.ms)
+            .Select(x => x.s).ToList();
     }
 
     /// <summary>Подключаемся к одному серверу: после старта ядра проверяем, что 204 действительно проходит (две попытки).</summary>
@@ -277,16 +354,49 @@ public sealed partial class VpnCore
     /// 2) не помогло и интернет есть — полное переподключение (в «Авто» с новым выбором рабочего узла).
     /// Нет интернета вообще (Wi-Fi пропал) — ждём, туннель не трогаем.
     /// </summary>
-    private void HealthTick()
+    private void HealthTick() => HealthTick(false);
+
+    /// <summary>
+    /// 1.5.0: плюс раз в минуту — проверка объёма (128 КБ), раз в 3 минуты — статус ключа на сервере.
+    /// force — после сна/смены сети: хватает одного провала, чтобы начать восстановление.
+    /// </summary>
+    private void HealthTick(bool force)
     {
         if (Interlocked.Exchange(ref _healthBusy, 1) == 1) return;
         try
         {
             if (!Running || Busy) return;
-            if (Ping204(_httpPort).GetAwaiter().GetResult()) { _healthFails = 0; return; }
-            if (++_healthFails < 2) return;
+            var n = Interlocked.Increment(ref _healthN);
+            if (n % 12 == 0)
+            {
+                try { WatchStatus(); } catch (Exception ex) { Log.Write("status: " + ex.Message); }
+                if (!Running) return;
+            }
+            if (Ping204(_httpPort).GetAwaiter().GetResult())
+            {
+                _healthFails = 0;
+                if (force || n % 4 == 0)
+                {
+                    if (Bulk(_httpPort).GetAwaiter().GetResult()) _bulkFails = 0;
+                    else if (++_bulkFails >= 2)
+                    {
+                        _bulkFails = 0;
+                        if (State.AutoSelect && State.Servers.Count > 1)
+                        {
+                            Log.Write("watchdog: 204 проходит, а объём обрывается (похоже на заморозку ТСПУ) — перехожу на другой узел");
+                            Freeze(ActiveGuid);
+                            Reconnect();
+                        }
+                        else Log.Write("watchdog: объём обрывается на выбранном сервере — включи «Авто», чтобы переключаться самому");
+                    }
+                }
+                return;
+            }
+            if (++_healthFails < (force ? 1 : 2)) return;
             _healthFails = 0;
-            Log.Write("watchdog: туннель не пропускает трафик (2 проверки подряд) — восстанавливаю");
+            Log.Write("watchdog: туннель не пропускает трафик — восстанавливаю");
+            try { WatchStatus(); } catch (Exception ex) { Log.Write("status: " + ex.Message); }   // ключ могли отозвать — тогда переподключение бессмысленно
+            if (!Running) return;
             if (SoftRestartCore() && Ping204(_httpPort).GetAwaiter().GetResult())
             {
                 Log.Write("watchdog: ядро перезапущено на том же сервере — трафик идёт");

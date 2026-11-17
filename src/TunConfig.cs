@@ -82,7 +82,10 @@ internal static class TunConfigBuilder
                     // QUIC (UDP 443) отклоняем: браузер и YouTube сразу переходят на TCP — через VLESS это быстрее и стабильнее
                     new JsonObject { ["network"] = "udp", ["port"] = 443, ["action"] = "reject", ["no_drop"] = true },
                     new JsonObject { ["ip_is_private"] = true, ["outbound"] = "direct" },
-                    new JsonObject { ["ip_cidr"] = new JsonArray("224.0.0.0/4", "255.255.255.255/32"), ["outbound"] = "direct" }),
+                    new JsonObject { ["ip_cidr"] = new JsonArray("224.0.0.0/4", "255.255.255.255/32", "ff00::/8"), ["outbound"] = "direct" },
+                    // 1.5.0: у серверов нет IPv6 — отказываем сразу и локально (RST), браузер и Telegram мгновенно идут по IPv4,
+                    // а не ждут таймаут (раньше такие соединения уходили на сервер и молча пропадали)
+                    new JsonObject { ["ip_version"] = 6, ["action"] = "reject" }),
                 ["final"] = "proxy"
             }
         };

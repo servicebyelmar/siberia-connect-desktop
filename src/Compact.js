@@ -242,6 +242,7 @@
       row('bolt', 'c4', 'Автообновление', 'скачивать и ставить новые версии само', 'scSetAu()', tg(au)) +
       row('clock', 'c5', 'Проверить обновления', 'сейчас v' + ver, 'scCheckUpd()') +
       row('gear', 'c5', 'Отправить логи', 'архив ляжет на рабочий стол — отправьте его в поддержку', 'SCNative.advanced()') +
+      row('ticket', 'c3', 'Ввести ключ, код или номер', 'vless://…, VPN-XXXX-XXXX, SC-XXXXX-XXXXX или номер подписки', 'scRedeemOpen()') +
       row('ticket', 'c3', 'Код для входа на другом устройстве', '', 'myCode()') +
       (typeof logout === 'function' ? row('user', 'c6', 'Выйти из аккаунта', '', 'logout()') : '') +
       '</div><div class="scft">Siberia Connect' + (ver ? ' · v' + ver : '') + '</div></div>';
@@ -264,6 +265,70 @@
   window.scCheckUpd = function () {
     try { toast('Проверяю обновления…'); window.SCNative.checkUpdate(); } catch (e) {}
   };
+
+  /* ───── 1.5.0: одно поле для ключа, кода и номера подписки (тип определяет сервер) ───── */
+  var rdBusy = false;
+  function esc(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function rdMsg(t, cls) { var m = $('sc-rd-msg'); if (m) { m.textContent = t || ''; m.className = 'sc-rd-msg ' + (cls || ''); } }
+  function rdState(b) {
+    rdBusy = b;
+    var g = $('sc-rd-go'), i = $('sc-rd-in');
+    if (g) { g.disabled = b; g.textContent = b ? 'Проверяю…' : 'Войти'; }
+    if (i) i.disabled = b;
+  }
+  window.scRedeemOpen = function () {
+    hideSettings();
+    var html = '<div class="shi">🔑</div><b>Ключ, код или номер</b>' +
+      '<p class="sc-rd-p">Вставь любое из этого — приложение само поймёт, что это:<br>' +
+      '• ключ <code>vless://…</code> или ссылку подписки<br>• код <code>VPN-XXXX-XXXX</code> — из приглашения или с сайта<br>' +
+      '• код восстановления <code>SC-XXXXX-XXXXX</code><br>• номер подписки <code>SC-12345</code> — вход подтвердишь в Telegram</p>' +
+      '<input id="sc-rd-in" class="sc-rd-in" autocomplete="off" spellcheck="false" aria-label="Ключ, код или номер подписки" placeholder="Вставь сюда (Ctrl+V)">' +
+      '<div id="sc-rd-msg" class="sc-rd-msg" role="status" aria-live="polite"></div>' +
+      '<button class="btn" id="sc-rd-go" type="button" onclick="scRedeemGo()">Войти</button>' +
+      '<button class="btn ghost" type="button" onclick="closeSheet()">Отмена</button>';
+    try { sheet(html); } catch (e) { return; }
+    rdState(false);
+    var i = $('sc-rd-in');
+    if (i) {
+      i.addEventListener('keydown', function (e) { if (e.key === 'Enter') window.scRedeemGo(); });
+      i.addEventListener('paste', function () { setTimeout(function () { i.value = i.value.trim(); }, 0); });
+      setTimeout(function () { try { i.focus(); } catch (e) {} }, 50);
+    }
+  };
+  window.scRedeemGo = function () {
+    var i = $('sc-rd-in');
+    if (!i || rdBusy) return;
+    var v = i.value.replace(/[\u200B-\u200F\u2060\uFEFF]/g, '').trim();
+    if (!v) { rdMsg('Вставь ключ, код или номер подписки', 'er'); i.focus(); return; }
+    rdState(true); rdMsg('');
+    try { window.SCNative.redeem(v); } catch (e) { rdState(false); rdMsg('Обнови приложение', 'er'); }
+  };
+  function onRedeem(ev) {
+    if (ev.stage === 'busy') { rdState(true); return; }
+    if (ev.stage === 'wait_tg') { rdMsg('📨 ' + (ev.message || 'Подтверди вход в Telegram — запрос уже в боте'), 'wt'); return; }
+    rdState(false);
+    if (ev.stage === 'ok') { try { closeSheet(); } catch (e) {} try { toast('✅ ' + (ev.message || 'Вход выполнен')); } catch (e) {} return; }
+    rdMsg('❌ ' + (ev.message || 'Не получилось'), 'er');
+  }
+  var RD_CSS = '.sc-rd-in{width:100%;box-sizing:border-box;min-height:48px;border-radius:14px;border:1px solid rgba(140,200,255,.3);' +
+    'background:rgba(0,0,0,.25);color:#fff;font-size:15px;padding:0 14px;margin:6px 0 4px}.sc-rd-in:focus{outline:none;border-color:#7fd3ff;' +
+    'box-shadow:0 0 0 3px rgba(127,211,255,.2)}.sc-rd-p{text-align:left;font-size:13px;line-height:1.55}.sc-rd-p code{font-size:12px}' +
+    '.sc-rd-msg{min-height:20px;font-size:13px;margin:4px 0 8px}.sc-rd-msg.er{color:#ff8a8a}.sc-rd-msg.wt{color:#7fd3ff}' +
+    '.sc-rd-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:60;border:1px solid rgba(127,211,255,.35);' +
+    'background:rgba(10,30,70,.92);color:#cfeaff;border-radius:22px;padding:10px 18px;font-size:14px;cursor:pointer;display:none}' +
+    '.sc-rd-fab.on{display:block}.sc-rd-fab:focus-visible{outline:2px solid #7fd3ff;outline-offset:2px}';
+  function rdFab() {
+    var f = $('sc-rd-fab');
+    if (!f) {
+      f = document.createElement('button');
+      f.id = 'sc-rd-fab'; f.type = 'button'; f.className = 'sc-rd-fab'; f.textContent = '🔑 Ключ или код';
+      f.addEventListener('click', function () { window.scRedeemOpen(); });
+      document.body.appendChild(f);
+    }
+    var on = false;
+    try { on = !window.SCNative.loggedIn() && !document.getElementById('wsheet')?.classList.contains('on'); } catch (e) {}
+    f.classList.toggle('on', on);
+  }
 
   /* ───── правки текстов и реферальная карточка ───── */
   var TITLE = { 'Защищено': 'Подключено', 'Нажми на снежинку': 'Отключено' };
@@ -363,8 +428,13 @@
       var _sn = window.scNative;
       window.scNative = function (ev) {
         try { if (ev && ev.type === 'update') onUpd(ev); } catch (e) {}
+        try { if (ev && ev.type === 'redeem') { onRedeem(ev); return; } } catch (e) {}
         return _sn ? _sn.apply(this, arguments) : undefined;
       };
+      var rst = document.createElement('style');
+      rst.id = 'scc-rd-css'; rst.textContent = RD_CSS;
+      (document.head || document.documentElement).appendChild(rst);
+      setInterval(rdFab, 700); rdFab();
       /* окно «Новая версия» самой страницы заменено плашкой; принудительное обновление (min.json) по-прежнему блокирует экран */
       if (typeof nxUpdCheck === 'function') {
         var _nuc = nxUpdCheck;

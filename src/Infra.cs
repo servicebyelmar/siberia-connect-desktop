@@ -134,6 +134,7 @@ public sealed class AppState
     public bool AutoRegDone { get; set; }
     public bool TokenFromInstall { get; set; }              // 1.3.0: вход получен по секрету установки (а не из кабинета)                   // 1.3.0: автовход уже пробовали — повторно не создаём аккаунт
     public string LoginCode { get; set; } = "";             // 1.3.0: код доступа SC-… (показывается в меню)
+    public string DeadToken { get; set; } = "";             // 1.5.0: последний отозванный токен — страница не может вернуть его обратно
 
     // Настройки прокси Windows до включения VPN (чтобы вернуть как было)
     public bool ProxySaved { get; set; }

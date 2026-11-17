@@ -60,6 +60,7 @@ public sealed class MainForm : Form
         Core = new VpnCore();
         Core.Changed += ev => Ui(() => OnCoreEvent(ev));
         Core.TokenChanged += t => Ui(() => PushToken(t));
+        Core.LoggedOut += r => Ui(() => OnLoggedOut(r));
 
         SetupTray();
         StartUpdateTimer();
@@ -76,6 +77,9 @@ public sealed class MainForm : Form
         }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(20));
 
         SystemEvents.SessionEnding += (_, _) => Core.Shutdown();
+        // 1.5.0: после сна и при смене сети (Wi-Fi ↔ кабель ↔ модем) туннель проверяется сразу
+        SystemEvents.PowerModeChanged += (_, e) => { if (e.Mode == PowerModes.Resume) Core.Kick("выход из сна", 5000); };
+        System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => Core.Kick("смена сети", 4000);
 
         if (Core.HasSub && (connectNow || (autostart && Core.State.AutoStart)))
             Task.Run(Core.Connect);
@@ -178,12 +182,59 @@ public sealed class MainForm : Form
 
     // ───────────────────────── 1.3.0: вход и связка с Telegram ─────────────────────────
 
-    private void PushToken(string token)
+    private async void PushToken(string token)
     {
         PushSnapshot();
-        if (string.IsNullOrEmpty(token)) return;
+        if (string.IsNullOrEmpty(token)) return;            // выход идёт через OnLoggedOut
+        await RefreshBridge();                              // следующая загрузка страницы получит уже новый вход
         var js = System.Text.Json.JsonSerializer.Serialize(token);
         Exec($"try{{if(localStorage.getItem('sc_tok')!=={js}){{localStorage.setItem('sc_tok',{js});location.reload();}}}}catch(e){{}}");
+    }
+
+    private string _bridgeId;
+
+    /// <summary>
+    /// 1.5.0: скрипт моста получает снимок состояния при регистрации. Раньше он регистрировался один раз при запуске,
+    /// и после выхода/смены ключа каждая перезагрузка страницы получала старый токен и клала его обратно в кабинет.
+    /// </summary>
+    private async Task RefreshBridge()
+    {
+        var cw = _web.CoreWebView2;
+        if (cw == null || !_ready) return;
+        try
+        {
+            if (_bridgeId != null) cw.RemoveScriptToExecuteOnDocumentCreated(_bridgeId);
+            _bridgeId = await cw.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript());
+        }
+        catch (Exception ex) { Log.Write("bridge: " + ex.Message); }
+    }
+
+    /// <summary>
+    /// 1.5.0: любой выход (кнопка, 401, аккаунт удалён) — закрыть все дочерние окна, стереть данные страницы
+    /// (localStorage, cookie, кэш), обновить мост и открыть кабинет заново (экран входа).
+    /// </summary>
+    private async void OnLoggedOut(string reason)
+    {
+        foreach (var f in Application.OpenForms.Cast<Form>().Where(f => f != this).ToList())
+        {
+            try { f.Close(); } catch { }
+        }
+        PushSnapshot();
+        var cw = _web.CoreWebView2;
+        if (cw != null && _ready)
+        {
+            try
+            {
+                await cw.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.AllDomStorage | CoreWebView2BrowsingDataKinds.Cookies |
+                                                        CoreWebView2BrowsingDataKinds.CacheStorage | CoreWebView2BrowsingDataKinds.DiskCache);
+            }
+            catch (Exception ex) { Log.Write("logout web: " + ex.Message); }
+            await RefreshBridge();
+            try { cw.Navigate(Home); } catch { }
+        }
+        UpdateTray();
+        if (reason != "кабинет")
+            Notify("Вы вышли из аккаунта (" + reason + "). Войдите снова: ключ, код или Telegram", true);
     }
 
     private void LinkTelegram()
@@ -518,7 +569,7 @@ public sealed class MainForm : Form
         s.IsGeneralAutofillEnabled = false;
         s.IsPasswordAutosaveEnabled = false;
 
-        await cw.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript());
+        _bridgeId = await cw.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript());
         cw.WebMessageReceived += OnWebMessage;
         cw.NavigationStarting += OnNavigationStarting;
         cw.NavigationCompleted += OnNavigationCompleted;
@@ -686,9 +737,18 @@ public sealed class MainForm : Form
                 if (on && _updM != null) _ = AutoFlow(_updM);
                 break;
             }
-            case "authToken":       // 1.3.0: кабинет вошёл/вышел
-                Core.AdoptToken(A(0));
+            case "authToken":       // 1.3.0: кабинет вошёл/вышел (1.5.0: выход — полный, через OnLoggedOut)
+            {
+                var t = A(0);
+                Task.Run(() => { Core.AdoptToken(t); Ui(() => { _ = RefreshBridge(); PushSnapshot(); }); });
                 break;
+            }
+            case "redeem":          // 1.5.0: умный ввод
+            {
+                var text = A(0);
+                Task.Run(() => Core.Redeem(text, ev => Ui(() => Emit(ev))));
+                break;
+            }
             case "linkTelegram":    // 1.3.0
                 BeginInvoke(new Action(LinkTelegram));
                 break;
@@ -843,6 +903,7 @@ public sealed class MainForm : Form
             ["tunActive"] = Core.TunActive,
             ["auto"] = Core.State.AutoSelect,
             ["appToken"] = Core.State.AuthToken ?? "",
+            ["deadTok"] = Core.State.DeadToken ?? "",
             ["account"] = Core.Account?["state"]?.GetValue<string>() ?? "",
             ["activeGuid"] = Core.Running ? Core.ActiveGuid : "",
             ["admin"] = Elevation.IsAdmin,

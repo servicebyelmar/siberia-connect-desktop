@@ -135,6 +135,7 @@ public sealed class AppState
     public bool TokenFromInstall { get; set; }              // 1.3.0: вход получен по секрету установки (а не из кабинета)                   // 1.3.0: автовход уже пробовали — повторно не создаём аккаунт
     public string LoginCode { get; set; } = "";             // 1.3.0: код доступа SC-… (показывается в меню)
     public string DeadToken { get; set; } = "";             // 1.5.0: последний отозванный токен — страница не может вернуть его обратно
+    public string DeviceId { get; set; } = "";              // 1.6.0: закреплённый идентификатор ПК (см. Device.Resolve)
 
     // Настройки прокси Windows до включения VPN (чтобы вернуть как было)
     public bool ProxySaved { get; set; }
@@ -210,21 +211,121 @@ public sealed class AppState
     }
 }
 
+/// <summary>
+/// Идентификатор этого ПК для сервера (x-hwid, привязка ключа ACTIVATION_V2, лимит устройств).
+/// 1.6.0: «сильный» id = SHA-256(MachineGuid + UUID платы (Win32_ComputerSystemProduct) + ProcessorId (Win32_Processor)).
+/// WMI может быть закрыт правами/службой или зависнуть — тогда без паники: id считается по одному MachineGuid (как раньше),
+/// приложение при старте никогда не падает.
+/// Чтобы id не «прыгал» (WMI то отвечает, то нет) и не ломал уже привязанные ключи, он закрепляется в состоянии
+/// (AppState.DeviceId): уже зарегистрированная установка остаётся на прежнем id, новая получает сильный.
+/// </summary>
 internal static class Device
 {
-    public static string Id()
+    private const string Suffix = ":com.siberiaconnect.win";
+    private const int WmiTimeoutMs = 4000;
+
+    /// <summary>Идентификатор без закрепления: сильный, при любой неудаче WMI — по MachineGuid.</summary>
+    public static string Id() => Strong() ?? Legacy();
+
+    /// <summary>Как считалось до 1.6.0: только MachineGuid (запасной вариант — имя ПК и пользователя).</summary>
+    public static string Legacy()
     {
-        string raw = "";
+        var raw = MachineGuid();
+        if (string.IsNullOrEmpty(raw)) raw = Environment.MachineName + "|" + Environment.UserName;
+        return Hash("sc:" + raw);
+    }
+
+    /// <summary>Id для этой установки: закреплённый в состоянии; иначе — прежний (если установка уже зарегистрирована на сервере) или сильный.</summary>
+    public static string Resolve(AppState st)
+    {
+        try
+        {
+            var saved = st.DeviceId ?? "";
+            if (saved.Length is >= 8 and <= 80 && saved.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) return saved;
+            var registered = !string.IsNullOrEmpty(st.AuthToken) || !string.IsNullOrEmpty(st.InstallSecret)
+                             || !string.IsNullOrEmpty(st.SubUrl) || st.Servers.Count > 0;
+            var id = registered ? Legacy() : Id();
+            st.DeviceId = id;
+            st.Save();
+            Log.Write($"device: id закреплён ({(registered ? "прежний, установка уже зарегистрирована" : "новый")})");
+            return id;
+        }
+        catch (Exception ex)
+        {
+            Log.Write("device: " + ex.Message);
+            return Legacy();
+        }
+    }
+
+    private static string Hash(string raw)
+    {
+        var h = SHA256.HashData(Encoding.UTF8.GetBytes(raw + Suffix));
+        return "win-" + Convert.ToHexString(h, 0, 12).ToLowerInvariant();
+    }
+
+    private static string MachineGuid()
+    {
         try
         {
             using var k = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64)
                 .OpenSubKey(@"SOFTWARE\Microsoft\Cryptography");
-            raw = k?.GetValue("MachineGuid") as string ?? "";
+            return k?.GetValue("MachineGuid") as string ?? "";
+        }
+        catch { return ""; }
+    }
+
+    /// <summary>MachineGuid + UUID платы + ProcessorId. null — WMI недоступен или не дал ни одного значения (тогда вызывающий берёт Legacy).</summary>
+    private static string Strong()
+    {
+        try
+        {
+            var guid = MachineGuid();
+            if (string.IsNullOrEmpty(guid)) return null;
+            string uuid = null, cpu = null;
+            // WMI иногда зависает (сломанная служба, антивирус) — ждём не дольше WmiTimeoutMs, поток не блокирует запуск
+            var t = Task.Run(() =>
+            {
+                uuid = Clean(Wmi("SELECT UUID FROM Win32_ComputerSystemProduct", "UUID"));
+                cpu = Clean(Wmi("SELECT ProcessorId FROM Win32_Processor", "ProcessorId"));
+            });
+            if (!t.Wait(WmiTimeoutMs)) { Log.Write("device: WMI не ответил — id по MachineGuid"); return null; }
+            if (string.IsNullOrEmpty(uuid) && string.IsNullOrEmpty(cpu)) { Log.Write("device: WMI пуст — id по MachineGuid"); return null; }
+            return Hash("sc2:" + guid + "|" + (uuid ?? "") + "|" + (cpu ?? ""));
+        }
+        catch (Exception ex)
+        {
+            Log.Write("device: WMI недоступен (" + ex.GetType().Name + ") — id по MachineGuid");
+            return null;
+        }
+    }
+
+    private static string Wmi(string query, string prop)
+    {
+        try
+        {
+            using var s = new System.Management.ManagementObjectSearcher(query);
+            foreach (System.Management.ManagementBaseObject o in s.Get())
+            {
+                using (o)
+                {
+                    var v = o[prop]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+                }
+            }
         }
         catch { }
-        if (string.IsNullOrEmpty(raw)) raw = Environment.MachineName + "|" + Environment.UserName;
-        var h = SHA256.HashData(Encoding.UTF8.GetBytes("sc:" + raw + ":com.siberiaconnect.win"));
-        return "win-" + Convert.ToHexString(h, 0, 12).ToLowerInvariant();
+        return null;
+    }
+
+    /// <summary>Заглушки производителей («все нули/F», известные фиктивные UUID) идентификатором не считаем.</summary>
+    private static string Clean(string v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return null;
+        v = v.Trim().ToUpperInvariant();
+        var digits = v.Replace("-", "");
+        if (digits.Length == 0 || digits.All(c => c == '0') || digits.All(c => c == 'F')) return null;
+        if (v is "03000200-0400-0500-0006-000700080009" or "TO BE FILLED BY O.E.M." or "NONE" or "DEFAULT STRING") return null;
+        return v;
     }
 }
 

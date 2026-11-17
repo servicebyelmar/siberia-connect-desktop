@@ -51,7 +51,7 @@ public sealed partial class VpnCore
     public VpnCore()
     {
         State = AppState.Load();
-        DeviceId = Device.Id();
+        DeviceId = Device.Resolve(State);   // 1.6.0: закреплён в состоянии; WMI недоступен — запасной MachineGuid, падения нет
         KillOrphans();
         if (State.ProxySaved) SysProxy.Restore(State); // после сбоя/выключения ПК — вернуть интернет
         Session.End();                                 // 1.1.0: метка от прошлого запуска больше не нужна
@@ -243,7 +243,9 @@ public sealed partial class VpnCore
                 if (cands.Count == 0)
                 {
                     Log.Write("auto: ни один узел не отдал 204 — не подключаемся");
-                    FireError("Серверы перегружены или нет сети. Проверь интернет и попробуй ещё раз");
+                    FireError(AutoBridgeOnly
+                        ? "Основные серверы сейчас недоступны. Если нужен обход блокировок — выбери сервер «Тайга» вручную (кнопка «Сменить»)"
+                        : "Серверы перегружены или нет сети. Проверь интернет и попробуй ещё раз");
                     return;
                 }
                 string err = null;

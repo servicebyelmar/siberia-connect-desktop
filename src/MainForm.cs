@@ -749,6 +749,26 @@ public sealed class MainForm : Form
                 Task.Run(() => Core.Redeem(text, ev => Ui(() => Emit(ev))));
                 break;
             }
+            case "rebind":          // 1.6.0: «Перенести ключ на этот ПК» → /v1/rebind, затем сразу подключаемся
+                Task.Run(() =>
+                {
+                    var ok = Core.Rebind(ev => Ui(() => Emit(ev)));
+                    Ui(() =>
+                    {
+                        _ = RefreshBridge();
+                        PushSnapshot();
+                        if (!ok) return;
+                        if (Core.State.TunMode && !Elevation.IsAdmin)
+                        {
+                            if (Elevation.Relaunch("--connect")) { ExitApp(); return; }
+                            Emit(new JsonObject { ["type"] = "state", ["state"] = "error",
+                                ["error"] = "Ключ перенесён. Для режима «Весь компьютер» нужно разрешение Windows — нажми на снежинку" });
+                            return;
+                        }
+                        Task.Run(Core.Connect);
+                    });
+                });
+                break;
             case "linkTelegram":    // 1.3.0
                 BeginInvoke(new Action(LinkTelegram));
                 break;
@@ -905,6 +925,7 @@ public sealed class MainForm : Form
             ["appToken"] = Core.State.AuthToken ?? "",
             ["deadTok"] = Core.State.DeadToken ?? "",
             ["account"] = Core.Account?["state"]?.GetValue<string>() ?? "",
+            ["lock"] = Core.LockSnapshot(),      // 1.6.0: ключ привязан к другому устройству (null — нет)
             ["activeGuid"] = Core.Running ? Core.ActiveGuid : "",
             ["admin"] = Elevation.IsAdmin,
             ["glass"] = _glass,

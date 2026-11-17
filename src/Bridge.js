@@ -78,6 +78,11 @@
     /* 1.3.0 */
     account: function () { return S.account || ''; },               // active | expired | blocked | device_limit | ''
     linkTelegram: function () { send('linkTelegram'); },
+    /* 1.6.0: ключ привязан к другому устройству (ACTIVATION_V2). lock() — JSON {code, deviceName, canRebind, retryAfter, rebindAt, message} или '';
+       rebind() — «Перенести ключ на этот ПК»: POST /v1/rebind, затем подключение. События: {type:'account', state:'device_locked', …}
+       и {type:'rebind', stage:'busy|ok|error', message} */
+    lock: function () { return S.lock ? JSON.stringify(S.lock) : ''; },
+    rebind: function () { send('rebind'); },
     /* 1.5.0: одно поле — ключ vless://, ссылка подписки, код VPN-XXXX-XXXX, SC-XXXXX-XXXXX или номер подписки.
        Ответ — событие {type:'redeem', stage:'busy|wait_tg|ok|error', message} */
     redeem: function (text) { send('redeem', [String(text || '')]); },

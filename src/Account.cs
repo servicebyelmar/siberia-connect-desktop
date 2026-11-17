@@ -20,20 +20,26 @@ internal static class Api
     private static readonly HttpClient Direct = Make(false);
     private static readonly HttpClient ViaSystem = Make(true);
 
-    /// <summary>(HTTP-код, ответ). Код 0 — нет связи.</summary>
-    public static (int code, JsonObject body) Post(string path, JsonObject body, string token = null)
+    /// <summary>(HTTP-код, ответ). Код 0 — нет связи (таймаут / сеть). Тело читается и при 4xx/5xx (409 DEVICE_LOCKED несёт поля).</summary>
+    public static (int code, JsonObject body) Post(string path, JsonObject body, string token = null) =>
+        Send(HttpMethod.Post, path, body, token, 0);
+
+    /// <summary>
+    /// 1.6.0: общий запрос. totalMs &gt; 0 — жёсткий общий срок на все попытки (прямой путь и системный прокси), иначе таймаут клиента (6 с на попытку).
+    /// </summary>
+    public static (int code, JsonObject body) Send(HttpMethod method, string path, JsonObject body, string token, int totalMs)
     {
+        using var cts = totalMs > 0 ? new CancellationTokenSource(totalMs) : null;
         foreach (var http in new[] { Direct, ViaSystem })
         {
+            if (cts != null && cts.IsCancellationRequested) break;
             try
             {
-                using var req = new HttpRequestMessage(HttpMethod.Post, Base + path)
-                {
-                    Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
-                };
+                using var req = new HttpRequestMessage(method, Base + path);
+                if (body != null) req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
                 req.Headers.TryAddWithoutValidation("User-Agent", $"SiberiaConnectWin/{AppInfo.Version}");
                 if (!string.IsNullOrEmpty(token)) req.Headers.TryAddWithoutValidation("X-App-Token", token);
-                using var resp = http.Send(req);
+                using var resp = cts != null ? http.Send(req, cts.Token) : http.Send(req);
                 using var s = resp.Content.ReadAsStream();
                 using var r = new StreamReader(s, Encoding.UTF8);
                 var text = r.ReadToEnd();
@@ -49,6 +55,24 @@ internal static class Api
     public static string S(JsonNode n, string k)
     {
         try { return n?[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : ""; } catch { return ""; }
+    }
+
+    /// <summary>Число из JSON (целое или дробное); нет поля — 0.</summary>
+    public static long L(JsonNode n, string k)
+    {
+        try
+        {
+            if (n?[k] is not JsonValue v) return 0;
+            if (v.TryGetValue<long>(out var l)) return l;
+            if (v.TryGetValue<double>(out var d)) return (long)d;
+        }
+        catch { }
+        return 0;
+    }
+
+    public static bool B(JsonNode n, string k)
+    {
+        try { return n?[k] is JsonValue v && v.TryGetValue<bool>(out var b) && b; } catch { return false; }
     }
 }
 
@@ -68,6 +92,70 @@ public sealed partial class VpnCore
 
     public bool NeedsAutoRegister => !HasSub && string.IsNullOrEmpty(State.AuthToken) && !State.AutoRegDone;
 
+    // ───────────── 1.6.0: привязка ключа к устройству (ACTIVATION_V2) ─────────────
+    /// <summary>
+    /// Ключ привязан к другому ПК/телефону (сервер ответил 409 DEVICE_LOCKED или REBIND_AVAILABLE).
+    /// Это НЕ отзыв: токен, ключ и серверы остаются, пока сервер явно не скажет 401/403.
+    /// Поля: code, deviceName, canRebind, retryAfter (сек), rebindAt (unix), message.
+    /// </summary>
+    public JsonObject Lock { get; private set; }
+
+    private static bool IsLockCode(string c) => c is "DEVICE_LOCKED" or "REBIND_AVAILABLE";
+
+    /// <summary>Сессия отозвана явно: 401/403 или коды KEY_EXPIRED / DEVICE_MISMATCH. Сеть, таймаут, 5xx, 429 — НЕ отзыв.</summary>
+    private static bool IsRevoked(int code, JsonObject r)
+    {
+        if (code is 401 or 403) return true;
+        var c = Api.S(r, "code");
+        return c is "KEY_EXPIRED" or "DEVICE_MISMATCH";
+    }
+
+    /// <summary>«через 2 дн. 22 ч», «через 5 ч 10 мин», «через 12 мин».</summary>
+    internal static string FormatLeft(long sec)
+    {
+        if (sec <= 0) return "несколько минут";
+        var d = sec / 86400; var h = sec % 86400 / 3600; var m = sec % 3600 / 60;
+        if (d > 0) return h > 0 ? $"{d} дн. {h} ч" : $"{d} дн.";
+        if (h > 0) return m > 0 ? $"{h} ч {m} мин" : $"{h} ч";
+        return $"{Math.Max(1, m)} мин";
+    }
+
+    /// <summary>Разобрать ответ как блокировку привязки (поля на верхнем уровне или в status). true — это блокировка, Lock выставлен.</summary>
+    private bool TryLock(int code, JsonObject r)
+    {
+        if (r == null) return false;
+        JsonNode src = r;
+        var c = Api.S(r, "code");
+        if (!IsLockCode(c) && r["status"] is JsonObject s && IsLockCode(Api.S(s, "code"))) { src = s; c = Api.S(s, "code"); }
+        if (!IsLockCode(c)) return false;
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var retry = Api.L(src, "retry_after");
+        var at = Api.L(src, "rebind_available_at");
+        var can = c == "REBIND_AVAILABLE" || Api.B(src, "confirm_required") || (retry <= 0 && at > 0 && at <= now);
+        var left = retry > 0 ? retry : Math.Max(0, at - now);
+        var name = Api.S(src, "bound_device_name");
+        var msg = can
+            ? "Ключ привязан к другому устройству. Его можно перенести на этот ПК."
+            : "Ключ привязан к другому устройству. Перенос на этот ПК станет доступен через " + FormatLeft(left);
+        Lock = new JsonObject
+        {
+            ["code"] = c, ["deviceName"] = name, ["canRebind"] = can, ["retryAfter"] = left,
+            ["rebindAt"] = at > 0 ? at : now + left, ["message"] = msg
+        };
+        Log.Write($"auth: {c} — ключ привязан к «{name}», перенос {(can ? "доступен" : "через " + FormatLeft(left))}; вход и ключ не трогаю");
+        return true;
+    }
+
+    private JsonObject LockEvent() => new()
+    {
+        ["type"] = "account", ["state"] = "device_locked", ["message"] = Api.S(Lock, "message"),
+        ["canRebind"] = Api.B(Lock, "canRebind"), ["retryAfter"] = Api.L(Lock, "retryAfter"),
+        ["rebindAt"] = Api.L(Lock, "rebindAt"), ["deviceName"] = Api.S(Lock, "deviceName")
+    };
+
+    /// <summary>Снимок блокировки для страницы (null — нет).</summary>
+    public JsonNode LockSnapshot() => Lock?.DeepClone();
+
     private string InstallSecret()
     {
         if (string.IsNullOrEmpty(State.InstallSecret))
@@ -86,7 +174,8 @@ public sealed partial class VpnCore
         {
             ["secret"] = InstallSecret(), ["did"] = DeviceId, ["platform"] = "windows"
         });
-        if (code != 200 || r == null || r["ok"]?.GetValue<bool>() != true)
+        if (TryLock(code, r)) return false;     // 409 DEVICE_LOCKED: ключ привязан к другому устройству — ничего не стираем
+        if (code != 200 || r == null || !Api.B(r, "ok"))
         {
             Log.Write($"auth: вход по устройству не удался ({code}) {Api.S(r, "error")}");
             if (code == 429 || code == 400) { State.AutoRegDone = true; State.Save(); }   // не долбим сервер
@@ -100,7 +189,8 @@ public sealed partial class VpnCore
         var lc = Api.S(r, "code");
         if (!string.IsNullOrEmpty(lc) && !lc.Contains('•')) State.LoginCode = lc;
         State.Save();
-        Log.Write("auth: вход по устройству" + (r["new"]?.GetValue<bool>() == true ? " — создан новый аккаунт" : ""));
+        Lock = null;
+        Log.Write("auth: вход по устройству" + (Api.B(r, "new") ? " — создан новый аккаунт" : ""));
         TokenChanged?.Invoke(token);
         if (r["status"] is JsonObject st) ApplyStatus(st);
         return true;
@@ -149,6 +239,7 @@ public sealed partial class VpnCore
             State.LastUpdate = DateTime.MinValue;
             State.Save();
             Account = null;
+            Lock = null;
             ActiveGuid = "";
         }
         lock (_pings) { _pings.Clear(); _verified.Clear(); _foreign.Clear(); }
@@ -162,16 +253,22 @@ public sealed partial class VpnCore
     public JsonObject CheckStatus()
     {
         if (string.IsNullOrEmpty(State.AuthToken)) return null;
+        Lock = null;    // блокировку определяет только свежий ответ сервера: при сетевой ошибке старую не держим
         var body = new JsonObject { ["did"] = DeviceId, ["platform"] = "windows", ["device_name"] = Environment.MachineName };
         var (code, r) = Api.Post("status", body, State.AuthToken);
-        if (code == 401)
+        if (TryLock(code, r)) return null;      // 409 DEVICE_LOCKED / REBIND_AVAILABLE: сессию, ключ и серверы не стираем
+        if (IsRevoked(code, r))
         {
-            // сессия истекла или аккаунт связали с Telegram: заходим заново по секрету установки
+            // явный отказ сервера (401/403, KEY_EXPIRED, DEVICE_MISMATCH): сессия истекла или аккаунт связали с Telegram —
+            // заходим заново по секрету установки
             if (State.TokenFromInstall && !string.IsNullOrEmpty(State.InstallSecret) && AutoRegister()) return Account;
+            if (Lock != null) return null;     // автовход упёрся в привязку устройства — это не отзыв
             Logout("сессия закончилась");
             return null;
         }
+        // нет связи (0), таймаут, 5xx, 429 и прочее — временная ошибка: ничего не стираем, подключаемся как раньше
         if (code != 200 || r?["status"] is not JsonObject st) return null;
+        Lock = null;
         if (Api.S(st, "state") == "relogin" && State.TokenFromInstall && !string.IsNullOrEmpty(State.InstallSecret))
             return AutoRegister() ? Account : null;
         ApplyStatus(st);
@@ -200,6 +297,11 @@ public sealed partial class VpnCore
         try { st = CheckStatus(); }
         catch (Exception ex) { Log.Write("auth: " + ex.Message); return null; }
         if (had && string.IsNullOrEmpty(State.AuthToken)) return "Вход закончился — войди снова";   // 1.5.0: 401 → выход, старым ключом не подключаемся
+        if (Lock != null)       // 1.6.0: ключ привязан к другому устройству — не подключаемся, показываем перенос
+        {
+            Changed?.Invoke(LockEvent());
+            return Api.S(Lock, "message");
+        }
         if (st == null) return null;
         var state = Api.S(st, "state");
         if (state is "expired" or "blocked" or "device_limit" or "no_account")
@@ -221,7 +323,17 @@ public sealed partial class VpnCore
     {
         if (string.IsNullOrEmpty(State.AuthToken) || Busy) return;
         var st = CheckStatus();
-        if (st == null) return;
+        if (st == null)
+        {
+            if (Lock != null)       // 1.6.0: ключ перенесли на другое устройство — этот ПК больше не привязан
+            {
+                Log.Write("status: ключ привязан к другому устройству — выключаю VPN");
+                if (Running) Disconnect();
+                Changed?.Invoke(LockEvent());
+                FireError(Api.S(Lock, "message"));
+            }
+            return;
+        }
         var state = Api.S(st, "state");
         if (state is "expired" or "blocked" or "device_limit" or "no_account")
         {
@@ -285,6 +397,58 @@ public sealed partial class VpnCore
         else { try { CheckStatus(); } catch { } }
         var st = Api.S(r, "state");
         progress(Ev("ok", st is "" or "active" ? "Готово — можно подключаться" : Api.S(r, "message")));
+    }
+
+    /// <summary>
+    /// 1.6.0: «Перенести ключ на этот ПК» — POST /v1/rebind {confirm:true, device_id, device_name}. Сервер отзывает конфиг старого
+    /// устройства и выдаёт ссылку подписки этому. true — перенесено (вызывающий включает подключение).
+    /// progress: {type:'rebind', stage:'busy|ok|error', message}.
+    /// </summary>
+    public bool Rebind(Action<JsonObject> progress)
+    {
+        JsonObject Ev(string stage, string msg) => new() { ["type"] = "rebind", ["stage"] = stage, ["message"] = msg ?? "" };
+        if (string.IsNullOrEmpty(State.AuthToken)) { progress(Ev("error", "Сначала войди в приложение")); return false; }
+        progress(Ev("busy", ""));
+        var body = new JsonObject
+        {
+            ["confirm"] = true, ["device_id"] = DeviceId, ["device_name"] = Environment.MachineName, ["platform"] = "windows"
+        };
+        var (code, r) = Api.Post("rebind", body, State.AuthToken);
+        if (code == 0) { progress(Ev("error", "Нет связи с сервером. Проверь интернет и повтори")); return false; }
+        if (TryLock(code, r))       // ещё рано (DEVICE_LOCKED): 72 часа не прошли
+        {
+            progress(Ev("error", Api.S(Lock, "message")));
+            Changed?.Invoke(LockEvent());
+            return false;
+        }
+        if (IsRevoked(code, r))
+        {
+            progress(Ev("error", "Сессия закончилась — войди снова"));
+            Logout("сессия закончилась");
+            return false;
+        }
+        var link = Api.S(r, "link");
+        if (code != 200 || !Api.B(r, "ok") || string.IsNullOrEmpty(link))
+        {
+            var err = Api.S(r, "error");
+            Log.Write($"rebind: не удалось ({code}) {Api.S(r, "code")} {err}");
+            progress(Ev("error", string.IsNullOrEmpty(err) ? "Не удалось перенести ключ — попробуй ещё раз через минуту" : err));
+            return false;
+        }
+        Lock = null;
+        Log.Write("rebind: ключ перенесён на этот ПК");
+        if (IsAllowedSubUrl(link))
+        {
+            var u = UpdateSub(link);
+            if (!Api.B(u, "ok"))
+            {
+                progress(Ev("error", Api.S(u, "error") is { Length: > 0 } e ? e : "Ключ перенесён, но список серверов не загрузился — нажми «Обновить ключ»"));
+                return false;
+            }
+        }
+        else { try { CheckStatus(); } catch { } }
+        progress(Ev("ok", "Ключ перенесён на этот ПК"));
+        return true;
     }
 
     /// <summary>Код для связки с Telegram: (код, ссылка на бота) или текст ошибки.</summary>

@@ -61,6 +61,7 @@ public sealed class MainForm : Form
         Core.Changed += ev => Ui(() => OnCoreEvent(ev));
         Core.TokenChanged += t => Ui(() => PushToken(t));
         Core.LoggedOut += r => Ui(() => OnLoggedOut(r));
+        Telemetry.Incident += code => Ui(() => Emit(new JsonObject { ["type"] = "incident", ["code"] = code }));   // 1.7.0: код обращения → плашка «Написать в поддержку»
 
         SetupTray();
         StartUpdateTimer();
@@ -78,7 +79,7 @@ public sealed class MainForm : Form
 
         SystemEvents.SessionEnding += (_, _) => Core.Shutdown();
         // 1.5.0: после сна и при смене сети (Wi-Fi ↔ кабель ↔ модем) туннель проверяется сразу
-        SystemEvents.PowerModeChanged += (_, e) => { if (e.Mode == PowerModes.Resume) Core.Kick("выход из сна", 5000); };
+        SystemEvents.PowerModeChanged += (_, e) => { if (e.Mode == PowerModes.Resume) { Telemetry.NoteResume(); Core.Kick("выход из сна", 5000); } };
         System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => Core.Kick("смена сети", 4000);
 
         if (Core.HasSub && (connectNow || (autostart && Core.State.AutoStart)))
@@ -454,7 +455,7 @@ public sealed class MainForm : Form
         menu.Items.Add("Открыть Siberia Connect", null, (_, _) => ShowFromTray());
         _miToggle = new ToolStripMenuItem("Подключить VPN", null, (_, _) => Task.Run(() =>
         {
-            if (Core.Running) Core.Disconnect(); else Core.Connect();
+            if (Core.Running) Core.UserDisconnect(); else Core.Connect();
         }));
         menu.Items.Add(_miToggle);
         // 1.3.0: связка с Telegram (только для аккаунтов без Telegram)
@@ -695,7 +696,7 @@ public sealed class MainForm : Form
                 break;
             }
             case "disconnect":
-                Task.Run(Core.Disconnect);
+                Task.Run(Core.UserDisconnect);
                 break;
             case "select":
             {

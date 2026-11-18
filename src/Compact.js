@@ -473,8 +473,37 @@
       '<button class="btn ghost" onclick="closeSheet()">Закрыть</button>');
   };
 
+  /* ───── 1.7.0: спокойный статус сбоя и «Написать в поддержку» с кодом обращения ─────
+     Плашка появляется ТОЛЬКО когда сервер принял отчёт о реальном сбое (событие incident с кодом INC-XXXXXX).
+     Никаких ручных кнопок диагностики: проверки идут в фоне, в приложении — одна короткая фраза и один выход. */
+  var INC_CSS = '#sc-inc{position:fixed;left:12px;right:12px;bottom:66px;z-index:11;display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 34px 10px 12px;' +
+    'border-radius:14px;background:rgba(14,32,72,.96);border:1px solid rgba(140,200,255,.22);color:#DCEBFF;font-size:12.5px;line-height:1.4}' +
+    '#sc-inc.on{display:flex}#sc-inc span{flex:1 1 100%}#sc-inc button{border:0;border-radius:10px;padding:8px 12px;background:linear-gradient(90deg,#2563eb,#38bdf8);color:#fff;font:inherit;font-weight:700;cursor:pointer}' +
+    '#sc-inc small{opacity:.6;font-size:11px}#sc-inc i{position:absolute;right:10px;top:8px;font-style:normal;cursor:pointer;opacity:.6;font-size:16px}#sc-inc i:hover{opacity:1}';
+  var incT = 0;
+  function incHide() { clearTimeout(incT); var b = $('sc-inc'); if (b) b.classList.remove('on'); }
+  function onIncident(ev) {
+    var code = String(ev && ev.code || '').replace(/[^A-Z0-9-]/g, '').slice(0, 12);
+    if (!code) return;
+    var b = $('sc-inc');
+    if (!b) { b = document.createElement('div'); b.id = 'sc-inc'; b.setAttribute('role', 'status'); document.body.appendChild(b); }
+    b.innerHTML = '<span>Не удалось подключиться. Попробуйте сменить локацию</span>' +
+      '<button type="button" id="sc-inc-go">Написать в поддержку</button><small>Код обращения ' + code + '</small><i id="sc-inc-x" aria-label="Закрыть">×</i>';
+    $('sc-inc-go').addEventListener('click', function () {
+      try { navigator.clipboard.writeText(code); } catch (e) {}
+      try { window.SCNative.openExternal('https://t.me/SibirHelpBot?start=' + code); } catch (e) {}
+      try { toast('Код ' + code + ' скопирован — вставьте его в сообщение'); } catch (e) {}
+    });
+    $('sc-inc-x').addEventListener('click', incHide);
+    b.classList.add('on');
+    clearTimeout(incT); incT = setTimeout(incHide, 10 * 60 * 1000);
+  }
+
   function boot() {
     try {
+      var ist = document.createElement('style');
+      ist.id = 'scc-inc-css'; ist.textContent = INC_CSS;
+      (document.head || document.documentElement).appendChild(ist);
       var st = document.createElement('style');
       st.id = 'scc-css'; st.textContent = CSS;
       (document.head || document.documentElement).appendChild(st);
@@ -488,6 +517,8 @@
       var _sn = window.scNative;
       window.scNative = function (ev) {
         try { if (ev && ev.type === 'update') onUpd(ev); } catch (e) {}
+        try { if (ev && ev.type === 'incident') { onIncident(ev); return; } } catch (e) {}
+        try { if (ev && ev.type === 'state' && (ev.state === 'on' || ev.state === 'connecting')) incHide(); } catch (e) {}
         try { if (ev && ev.type === 'redeem') { onRedeem(ev); return; } } catch (e) {}
         try { if (ev && ev.type === 'rebind') { onRebind(ev); return; } } catch (e) {}
         try { if (ev && ev.type === 'account' && ev.state === 'device_locked') onLock(ev); } catch (e) {}   // страница тоже получит событие

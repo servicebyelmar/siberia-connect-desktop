@@ -31,6 +31,11 @@ internal static class Program
             ApiSelfTest.Run(args[1], args[2]);   // CI: nodes/rank и его сбои на локальном сервере (только в режиме экземпляра)
             return;
         }
+        if (args.Length >= 2 && args[0] == "--selftest-telemetry")
+        {
+            TelemetrySelfTest.Run(args[1]);   // CI: фильтр ложных срабатываний, дедупликация и очистка лога (чистая логика, без сети)
+            return;
+        }
         if (args.Length >= 2 && args[0] == "--selftest")
         {
             SelfTest.Run(args[1]);

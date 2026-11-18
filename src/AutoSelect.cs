@@ -445,6 +445,7 @@ public sealed partial class VpnCore
                     else if (++_bulkFails >= 2)
                     {
                         _bulkFails = 0;
+                        ReportIncident(TelemetryGate.NoTraffic, 6000);   // 1.7.0: заморозка потока — отчёт через 6 с, после переподключения
                         if (State.AutoSelect && State.Servers.Count > 1)
                         {
                             Log.Write("watchdog: 204 проходит, а объём обрывается (похоже на заморозку ТСПУ) — перехожу на другой узел");
@@ -474,6 +475,7 @@ public sealed partial class VpnCore
             Log.Write(State.AutoSelect && State.Servers.Count > 1
                 ? "watchdog: перезапуск не помог — выбираю другой рабочий узел"
                 : "watchdog: перезапуск не помог — подключаюсь заново");
+            ReportIncident(TelemetryGate.NoTraffic, 6000);   // 1.7.0: туннель молчит при живом интернете; мягкий перезапуск (успешный) не считаем
             Reconnect();
         }
         catch (Exception ex) { Log.Write("watchdog: " + ex.Message); }

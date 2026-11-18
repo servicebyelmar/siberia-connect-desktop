@@ -373,6 +373,7 @@ public sealed partial class VpnCore
         if (had && string.IsNullOrEmpty(State.AuthToken)) return "Вход закончился — войди снова";   // 1.5.0: 401 → выход, старым ключом не подключаемся
         if (Lock != null)       // 1.6.0: ключ привязан к другому устройству — не подключаемся, показываем перенос
         {
+            ReportIncident(TelemetryGate.DeviceLocked, 0);   // 1.7.0: фон, не чаще раза в 10 минут
             Changed?.Invoke(LockEvent());
             return Api.S(Lock, "message");
         }
@@ -402,6 +403,7 @@ public sealed partial class VpnCore
             if (Lock != null)       // 1.6.0: ключ перенесли на другое устройство — этот ПК больше не привязан
             {
                 Log.Write("status: ключ привязан к другому устройству — выключаю VPN");
+                ReportIncident(TelemetryGate.DeviceLocked, 0);
                 if (Running) Disconnect();
                 Changed?.Invoke(LockEvent());
                 FireError(Api.S(Lock, "message"));

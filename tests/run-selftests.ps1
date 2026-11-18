@@ -2,6 +2,7 @@
 #   1) --selftest без SC_INSTANCE: конфиги движков, резервная копия, прежние имена мьютекса/события и путь профиля.
 #   2) --selftest с SC_INSTANCE: суффиксы имён и профиля, запреты режима экземпляра.
 #   3) --selftest-api: разбор сохранённого ответа nodes/rank и сбои рейтинга на локальном сервере 127.0.0.1.
+#   4) --selftest-telemetry: фильтр ложных срабатываний телеметрии, дедупликация, очистка лога (чистая логика, без сети).
 # Профили экземпляров пишутся только в -Work. Сценарий 4 (физический разрыв линка) здесь не проверяется — только стенд (tests/STAND-4.md).
 param(
     [Parameter(Mandatory = $true)][string]$Exe,
@@ -45,6 +46,8 @@ $common = @('backup-ok.txt', 'tun.json', 'xray-reality.json', 'xray-xhttp.json',
 Test-Step 'selftest-default' { Invoke-Mode 'selftest-default' @('--selftest') @{} ($common + 'instance-default-ok.txt') $null }
 Test-Step 'selftest-instance' { Invoke-Mode 'selftest-instance' @('--selftest') @{ SC_INSTANCE = 'ci-a'; SC_DATA_ROOT = (Join-Path $Work 'data') } ($common + 'instance-ok.txt') 'instance-ok.txt|ci-a' }
 Test-Step 'selftest-api' { Invoke-Mode 'selftest-api' @('--selftest-api', $fixture) @{ SC_INSTANCE = 'ci-api'; SC_DATA_ROOT = (Join-Path $Work 'data') } @('api-ok.txt') 'api-ok.txt|done' }
+
+Test-Step 'selftest-telemetry' { Invoke-Mode 'selftest-telemetry' @('--selftest-telemetry') @{} @('telemetry-ok.txt') $null }
 
 if ($failed.Count) { Write-Output ('FAILED: ' + ($failed -join ', ')); exit 1 }
 Write-Output 'ALL PASSED'

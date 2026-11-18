@@ -134,7 +134,7 @@ jobs:
         run: Compress-Archive -Path publish/* -DestinationPath "out/SiberiaConnect-Portable-$env:APP_VERSION.zip"
 
       - name: Release (установщик + update.json — сервер сам заберёт, проверит подпись и опубликует)
-        if: github.ref == 'refs/heads/main' || inputs.publish == true
+        if: false   # ci-gate: тестовая ветка никогда не публикует релиз
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

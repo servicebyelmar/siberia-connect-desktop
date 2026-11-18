@@ -175,6 +175,7 @@
   function hideSettings() { if (set) set.classList.remove('on'); }
 
   function sync() {
+    unfreeze();
     if (!nav) return;
     var k = '';
     if (set.classList.contains('on')) k = 'settings';
@@ -310,6 +311,65 @@
     if (ev.stage === 'ok') { try { closeSheet(); } catch (e) {} try { toast('✅ ' + (ev.message || 'Вход выполнен')); } catch (e) {} return; }
     rdMsg('❌ ' + (ev.message || 'Не получилось'), 'er');
   }
+  /* ───── 1.6.0: ключ привязан к другому устройству (409 DEVICE_LOCKED / REBIND_AVAILABLE) ───── */
+  var rbBusy = false;
+  function rbMsg(t, cls) { var m = $('sc-rb-msg'); if (m) { m.textContent = t || ''; m.className = 'sc-rd-msg ' + (cls || ''); } }
+  function rbState(b) {
+    rbBusy = b;
+    var g = $('sc-rb-go');
+    if (g) { g.disabled = b; g.textContent = b ? 'Переношу…' : 'Перенести ключ на этот ПК'; }
+  }
+  function onLock(ev) {
+    rbBusy = false;
+    var can = ev.canRebind === true;
+    var msg = ev.message || (can ? 'Ключ привязан к другому устройству. Его можно перенести на этот ПК.'
+      : 'Ключ привязан к другому устройству. Перенос на этот ПК станет доступен позже');
+    var html = '<div class="shi">🔒</div><b>Ключ привязан к другому устройству</b>' +
+      '<p class="sc-rd-p">' + esc(msg) + '</p>' +
+      (ev.deviceName ? '<p class="sc-rd-p">Сейчас он на устройстве: <b>' + esc(ev.deviceName) + '</b></p>' : '') +
+      (can ? '<p class="sc-rd-p">После переноса на старом устройстве ключ перестанет работать.</p>' : '') +
+      '<div id="sc-rb-msg" class="sc-rd-msg" role="status" aria-live="polite"></div>' +
+      (can ? '<button class="btn" id="sc-rb-go" type="button" onclick="scRebindGo()">Перенести ключ на этот ПК</button>' : '') +
+      '<button class="btn ghost" type="button" onclick="closeSheet()">' + (can ? 'Отмена' : 'Понятно') + '</button>';
+    try { sheet(html); } catch (e) {}
+  }
+  window.scRebindGo = function () {
+    if (rbBusy) return;
+    rbState(true); rbMsg('');
+    try { window.SCNative.rebind(); } catch (e) { rbState(false); rbMsg('Обнови приложение', 'er'); }
+  };
+  function onRebind(ev) {
+    if (ev.stage === 'busy') { rbState(true); return; }
+    rbState(false);
+    if (ev.stage === 'ok') { try { closeSheet(); } catch (e) {} try { toast('✅ ' + (ev.message || 'Ключ перенесён') + ' — подключаю'); } catch (e) {} return; }
+    rbMsg('❌ ' + (ev.message || 'Не получилось'), 'er');
+  }
+
+  /* ───── 1.6.0: «снежинка» ─────
+     1) Страница ставит html.paused (все анимации замирают), когда document.hidden, и снимает по visibilitychange. После сворачивания
+        в трей / сна / смены окна WebView2 может не прислать обратное событие — кнопка так и остаётся «замороженной».
+        Поэтому видимое окно само снимает паузу и перезапускает анимации кнопки (раз в 300 мс — вместе с sync, и по событиям).
+     2) Кольца и волна лежат над/рядом с кнопкой: им нельзя ловить клики (иначе кольцо с анимацией перехватывает нажатие). */
+  var FLAKE_CSS = 'html.win.scc .wzring,html.win.scc .wzring2,html.win.scc .wtick,html.win.scc .wwave{pointer-events:none}' +
+    'html.win.scc .worb{z-index:1;touch-action:manipulation;-webkit-tap-highlight-color:transparent}' +
+    'html.win.scc .worb:focus{outline:none}html.win.scc .worb:focus-visible{outline:2px solid #7FD3FF;outline-offset:6px}';
+  function kickFlake() {
+    var o = $('worb');
+    if (!o) return;
+    try {
+      o.style.animation = 'none';
+      var s = o.firstElementChild;
+      if (s && s.style) s.style.animation = 'none';
+      void o.offsetWidth;
+      o.style.animation = '';
+      if (s && s.style) s.style.animation = '';
+    } catch (e) {}
+  }
+  function unfreeze() {
+    var d = document.documentElement;
+    if (!document.hidden && d.classList.contains('paused')) { d.classList.remove('paused'); kickFlake(); }
+  }
+
   var RD_CSS = '.sc-rd-in{width:100%;box-sizing:border-box;min-height:48px;border-radius:14px;border:1px solid rgba(140,200,255,.3);' +
     'background:rgba(0,0,0,.25);color:#fff;font-size:15px;padding:0 14px;margin:6px 0 4px}.sc-rd-in:focus{outline:none;border-color:#7fd3ff;' +
     'box-shadow:0 0 0 3px rgba(127,211,255,.2)}.sc-rd-p{text-align:left;font-size:13px;line-height:1.55}.sc-rd-p code{font-size:12px}' +
@@ -429,12 +489,20 @@
       window.scNative = function (ev) {
         try { if (ev && ev.type === 'update') onUpd(ev); } catch (e) {}
         try { if (ev && ev.type === 'redeem') { onRedeem(ev); return; } } catch (e) {}
+        try { if (ev && ev.type === 'rebind') { onRebind(ev); return; } } catch (e) {}
+        try { if (ev && ev.type === 'account' && ev.state === 'device_locked') onLock(ev); } catch (e) {}   // страница тоже получит событие
         return _sn ? _sn.apply(this, arguments) : undefined;
       };
       var rst = document.createElement('style');
       rst.id = 'scc-rd-css'; rst.textContent = RD_CSS;
       (document.head || document.documentElement).appendChild(rst);
       setInterval(rdFab, 700); rdFab();
+      var fst = document.createElement('style');
+      fst.id = 'scc-flake-css'; fst.textContent = FLAKE_CSS;
+      (document.head || document.documentElement).appendChild(fst);
+      ['visibilitychange', 'focus', 'resize', 'pageshow'].forEach(function (n) {
+        (n === 'visibilitychange' ? document : window).addEventListener(n, function () { setTimeout(unfreeze, 50); });
+      });
       /* окно «Новая версия» самой страницы заменено плашкой; принудительное обновление (min.json) по-прежнему блокирует экран */
       if (typeof nxUpdCheck === 'function') {
         var _nuc = nxUpdCheck;

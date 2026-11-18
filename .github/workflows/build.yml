@@ -3,6 +3,8 @@ name: Build Windows
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       publish:
@@ -14,7 +16,32 @@ permissions:
   contents: write
 
 jobs:
+  # Тесты без GUI, VPN и боевого API. Релиз (job build) стартует только если они прошли.
+  # Сценарий 4 (физический разрыв линка) в CI не проверяется — только стенд, см. tests/STAND-4.md.
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # -warnaserror:MSB3277 — конфликт версий сборок (WindowsBase) не должен возвращаться
+      - name: Build for tests
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION -Raw).Trim()
+          dotnet publish src/SiberiaConnect.csproj -c Release -o publish-test "-p:Version=$v" -warnaserror:MSB3277
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Self-tests (selftest, instance mode, nodes/rank on loopback)
+        shell: pwsh
+        run: ./tests/run-selftests.ps1 -Exe publish-test/SiberiaConnect.exe -Work "$env:RUNNER_TEMP/sc-tests"
+
   build:
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

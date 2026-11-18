@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text;
+using System.Text.Json.Nodes;
 
 namespace SiberiaConnect;
 
@@ -123,24 +124,87 @@ public sealed partial class VpnCore
     /// </summary>
     private List<ServerItem> RankAuto()
     {
+        AutoBridgeOnly = false;
         var list = State.Servers.ToList();
         if (list.Count == 0) return new List<ServerItem>();
+        // 1.6.0: серверный рейтинг нагрузки узлов — параллельно с замером (общий срок запроса 3 с; не ответил — работаем по замеру)
+        var rankTask = Task.Run(FetchRank);
         var res = Probe(list);
+        Dictionary<string, NodeRank> rank = null;
+        try { if (rankTask.Wait(RankTimeoutMs + 500)) rank = rankTask.Result; } catch { }
+        NodeRank RankOf(ServerItem s)
+        {
+            if (rank == null) return null;
+            foreach (var (key, word) in NodeWords)
+                if (s.Name != null && s.Name.Contains(word, StringComparison.OrdinalIgnoreCase) && rank.TryGetValue(key, out var r)) return r;
+            return null;
+        }
         HashSet<string> yt, abroad;
         lock (_pings) { yt = new HashSet<string>(_verified); abroad = new HashSet<string>(_foreign); }
+        string RankNote(ServerItem s)
+        {
+            var nr = RankOf(s);
+            return nr == null ? "" : " #" + nr.Rank + (nr.Available ? "" : " (сервер: перегружен)");
+        }
         Log.Write("auto: " + string.Join(", ", list.Select(s =>
-            $"{s.Name} = {(res[s.Guid] > 0 ? res[s.Guid] + " мс" + (abroad.Contains(s.Guid) ? " +вне RU" : "") + (yt.Contains(s.Guid) ? " +yt" : "") + (IsFrozen(s.Guid) ? " (обрывы)" : "") : "нет 204")}")));
-        var ok = list.Select((s, i) => (s, i, ms: res[s.Guid])).Where(x => x.ms > 0).ToList();
-        if (ok.Count == 0) return new List<ServerItem>();
+            $"{s.Name} = {(res[s.Guid] > 0 ? res[s.Guid] + " мс" + (abroad.Contains(s.Guid) ? " +вне RU" : "") + (yt.Contains(s.Guid) ? " +yt" : "") + (IsFrozen(s.Guid) ? " (обрывы)" : "") + RankNote(s) : "нет 204")}")));
+        Log.Write(rank == null ? "auto: рейтинг узлов с сервера недоступен — выбираю по замеру" : "auto: рейтинг узлов с сервера учтён");
+        var all = list.Select((s, i) => (s, i, ms: res[s.Guid])).Where(x => x.ms > 0).ToList();
+        // «Тайга» (российский мост для обхода белых списков) в автовыборе не участвует — только по явному выбору пользователя
+        var ok = all.Where(x => !IsBridge(x.s)).ToList();
+        if (ok.Count == 0)
+        {
+            if (all.Count > 0) { AutoBridgeOnly = true; Log.Write("auto: основные узлы не отвечают, мост «Тайга» работает — автоматически не выбираю, только вручную"); }
+            return new List<ServerItem>();
+        }
         int Tier(string g) => abroad.Contains(g) && yt.Contains(g) ? 0 : abroad.Contains(g) ? 1 : 2;
-        int Group((ServerItem s, int i, int ms) x) => (IsFrozen(x.s.Guid) ? 10 : 0) + Tier(x.s.Guid);
+        // узел, который сервер считает перегруженным/недоступным, уходит в конец своей группы (замер остаётся главным: «рабочий важнее быстрого»)
+        int Group((ServerItem s, int i, int ms) x) => (IsFrozen(x.s.Guid) ? 10 : 0) + (RankOf(x.s) is { Available: false } ? 5 : 0) + Tier(x.s.Guid);
         var bestOf = ok.GroupBy(Group).ToDictionary(g => g.Key, g => g.Min(x => x.ms));
         bool Near((ServerItem s, int i, int ms) x) { var b = bestOf[Group(x)]; return x.ms <= b + Math.Max(20, b * 15 / 100); }
+        // почти равные по скорости — по серверному рейтингу (менее загруженный выше), нет рейтинга — по порядку в подписке; остальные — по скорости
+        int NearKey((ServerItem s, int i, int ms) x) => RankOf(x.s) is { } r ? r.Rank : 1000 + x.i;
         return ok
             .OrderBy(Group)
-            .ThenBy(x => Near(x) ? 0 : 1)                   // почти равные по скорости — по порядку в подписке, остальные — по скорости
-            .ThenBy(x => Near(x) ? x.i : x.ms)
+            .ThenBy(x => Near(x) ? 0 : 1)
+            .ThenBy(x => Near(x) ? NearKey(x) : x.ms)
             .Select(x => x.s).ToList();
+    }
+
+    // ───────────── 1.6.0: серверный рейтинг узлов и мост «Тайга» ─────────────
+    private const int RankTimeoutMs = 3000;
+    private static readonly (string key, string word)[] NodeWords = { ("buran", "Буран"), ("ice", "Ледокол"), ("taiga", "Тайга") };
+
+    private sealed record NodeRank(int Rank, bool Available, double Load);
+
+    /// <summary>Основные узлы отвечают на замер не были, а «Тайга» работает — подсказка в сообщении об ошибке.</summary>
+    private bool AutoBridgeOnly { get; set; }
+
+    /// <summary>Российский мост (обход белых списков): по имени узла в подписке.</summary>
+    internal static bool IsBridge(ServerItem s) =>
+        s?.Name != null && (s.Name.Contains("Тайга", StringComparison.OrdinalIgnoreCase)
+                            || s.Name.Contains("Taiga", StringComparison.OrdinalIgnoreCase) || s.Name.Contains("🌲"));
+
+    /// <summary>GET /v1/nodes/rank (общий срок 3 с). null — нет входа, нет ответа или ответ не разобрать: остаётся замер.</summary>
+    private Dictionary<string, NodeRank> FetchRank()
+    {
+        if (string.IsNullOrEmpty(State.AuthToken)) return null;
+        try
+        {
+            var (code, r) = Api.Send(HttpMethod.Get, "nodes/rank", null, State.AuthToken, RankTimeoutMs);
+            if (code != 200 || r == null || !Api.B(r, "ok") || r["nodes"] is not JsonArray arr) return null;
+            var d = new Dictionary<string, NodeRank>();
+            foreach (var n in arr)
+            {
+                var key = Api.S(n, "key");
+                if (string.IsNullOrEmpty(key)) continue;
+                double load = 0;
+                try { if (n?["load"] is JsonValue lv && lv.TryGetValue<double>(out var l)) load = l; } catch { }
+                d[key] = new NodeRank((int)Api.L(n, "rank"), Api.B(n, "available"), load);
+            }
+            return d.Count > 0 ? d : null;
+        }
+        catch (Exception ex) { Log.Write("auto: nodes/rank — " + ex.Message); return null; }
     }
 
     /// <summary>Подключаемся к одному серверу: после старта ядра проверяем, что 204 действительно проходит (две попытки).</summary>

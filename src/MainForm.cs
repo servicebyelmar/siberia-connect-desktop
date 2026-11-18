@@ -39,7 +39,7 @@ public sealed class MainForm : Form
         SuspendLayout();
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        Text = "Siberia Connect";
+        Text = AppInstance.Active ? $"Siberia Connect [{AppInstance.Id}]" : "Siberia Connect";
         Icon = _iconOn;
         BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
@@ -599,6 +599,17 @@ public sealed class MainForm : Form
     private void OnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
     {
         var uri = e.Uri ?? "";
+        if (AppInstance.Active && IsOurs(uri))
+        {
+            // режим экземпляра: боевой кабинет не открываем (страница сама ходит на сервер и может завести устройство) — показываем офлайн-страницу
+            e.Cancel = true;
+            AppInstance.DenyRemote("страница кабинета", Host);
+            BeginInvoke(new Action(() =>
+            {
+                try { _web.CoreWebView2.NavigateToString(AppInfo.ResourceText("Offline.html").Replace("__HOME__", "about:blank")); } catch { }
+            }));
+            return;
+        }
         if (IsOurs(uri) || uri.StartsWith("data:") || uri.StartsWith("about:")) return;
         e.Cancel = true;
         OpenExternal(uri);
@@ -749,6 +760,26 @@ public sealed class MainForm : Form
                 Task.Run(() => Core.Redeem(text, ev => Ui(() => Emit(ev))));
                 break;
             }
+            case "rebind":          // 1.6.0: «Перенести ключ на этот ПК» → /v1/rebind, затем сразу подключаемся
+                Task.Run(() =>
+                {
+                    var ok = Core.Rebind(ev => Ui(() => Emit(ev)));
+                    Ui(() =>
+                    {
+                        _ = RefreshBridge();
+                        PushSnapshot();
+                        if (!ok) return;
+                        if (Core.State.TunMode && !Elevation.IsAdmin)
+                        {
+                            if (Elevation.Relaunch("--connect")) { ExitApp(); return; }
+                            Emit(new JsonObject { ["type"] = "state", ["state"] = "error",
+                                ["error"] = "Ключ перенесён. Для режима «Весь компьютер» нужно разрешение Windows — нажми на снежинку" });
+                            return;
+                        }
+                        Task.Run(Core.Connect);
+                    });
+                });
+                break;
             case "linkTelegram":    // 1.3.0
                 BeginInvoke(new Action(LinkTelegram));
                 break;
@@ -789,11 +820,13 @@ public sealed class MainForm : Form
     /// <summary>Проверка win.json в фоне: через 20 секунд после старта и затем раз в 6 часов (запуск окна не задерживается).</summary>
     private void StartUpdateTimer()
     {
+        if (AppInstance.Forbid("таймер обновлений")) return;
         _updTimer = new System.Threading.Timer(_ => { _ = CheckUpdate(false); }, null, TimeSpan.FromSeconds(20), TimeSpan.FromHours(6));
     }
 
     private async Task CheckUpdate(bool manual)
     {
+        if (AppInstance.Forbid("проверка обновлений")) return;
         if (Interlocked.Exchange(ref _updBusy, 1) == 1) return;
         try
         {
@@ -837,6 +870,7 @@ public sealed class MainForm : Form
 
     private void StartInstall()
     {
+        if (AppInstance.Forbid("установка обновления")) return;
         var reconnect = Core.Running;
         Task.Run(async () =>
         {
@@ -905,6 +939,7 @@ public sealed class MainForm : Form
             ["appToken"] = Core.State.AuthToken ?? "",
             ["deadTok"] = Core.State.DeadToken ?? "",
             ["account"] = Core.Account?["state"]?.GetValue<string>() ?? "",
+            ["lock"] = Core.LockSnapshot(),      // 1.6.0: ключ привязан к другому устройству (null — нет)
             ["activeGuid"] = Core.Running ? Core.ActiveGuid : "",
             ["admin"] = Elevation.IsAdmin,
             ["glass"] = _glass,

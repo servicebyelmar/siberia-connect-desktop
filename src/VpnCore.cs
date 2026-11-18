@@ -51,7 +51,7 @@ public sealed partial class VpnCore
     public VpnCore()
     {
         State = AppState.Load();
-        DeviceId = Device.Id();
+        DeviceId = Device.Resolve(State);   // 1.6.0: закреплён в состоянии; WMI недоступен — запасной MachineGuid, падения нет
         KillOrphans();
         if (State.ProxySaved) SysProxy.Restore(State); // после сбоя/выключения ПК — вернуть интернет
         Session.End();                                 // 1.1.0: метка от прошлого запуска больше не нужна
@@ -157,6 +157,8 @@ public sealed partial class VpnCore
 
     private string Fetch(HttpClient http, string url)
     {
+        if (AppInstance.DenyRemote("подписка", new Uri(url).Host))
+            throw new InvalidOperationException("Режим экземпляра: запросы к серверу запрещены");
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.TryAddWithoutValidation("User-Agent", $"v2rayN/7.0 SiberiaConnect/{AppInfo.Version} (Windows)");
         req.Headers.TryAddWithoutValidation("x-hwid", DeviceId);
@@ -229,6 +231,10 @@ public sealed partial class VpnCore
                 srv = State.Servers.FirstOrDefault();
             }
             if (srv == null) { FireError("Сначала обнови ключ"); return; }
+            if (State.TunMode && AppInstance.Forbid("подключение в режиме «Весь компьютер» (TUN)"))
+            {
+                FireError("Режим экземпляра: «Весь компьютер» запрещён. Выключи его в настройках"); return;
+            }
             Busy = true;
             Fire("connecting");
             try
@@ -243,7 +249,9 @@ public sealed partial class VpnCore
                 if (cands.Count == 0)
                 {
                     Log.Write("auto: ни один узел не отдал 204 — не подключаемся");
-                    FireError("Серверы перегружены или нет сети. Проверь интернет и попробуй ещё раз");
+                    FireError(AutoBridgeOnly
+                        ? "Основные серверы сейчас недоступны. Если нужен обход блокировок — выбери сервер «Тайга» вручную (кнопка «Сменить»)"
+                        : "Серверы перегружены или нет сети. Проверь интернет и попробуй ещё раз");
                     return;
                 }
                 string err = null;
@@ -522,6 +530,8 @@ public sealed partial class VpnCore
 
     public static void KillOrphans()
     {
+        // движки ищутся по пути core\ установки: экземпляр, запущенный из той же папки, что и стабильная версия, убил бы её ядра
+        if (AppInstance.Forbid("уничтожение «осиротевших» ядер")) return;
         foreach (var path in new[] { Paths.Xray, Paths.SingBox })
             foreach (var p in OurProcesses(path))
                 try { using (p) p.Kill(true); } catch { }
@@ -561,9 +571,11 @@ public sealed partial class VpnCore
 
     private string StartTun(string[] serverIps)
     {
+        if (AppInstance.Forbid("режим «Весь компьютер» (TUN)")) return "Режим экземпляра: «Весь компьютер» запрещён";
         if (!File.Exists(Paths.SingBox)) return "Не найден компонент «Весь компьютер». Переустанови Siberia Connect";
         StopTun();
         Recovery.Sweep();   // 1.1.0: адаптер, оставшийся после сбоя, мешал бы новому
+        TunOwner.Write();   // 1.6.0: метка «адаптер этой установки» — по ней Recovery после сбоя уберёт именно его
         Log.Write("tun: мимо адаптера " + (serverIps.Length > 0 ? string.Join(", ", serverIps) : "— (адрес сервера не определён)"));
         try { File.WriteAllText(Paths.TunConfig, TunConfigBuilder.Build(_socksPort, serverIps), new UTF8Encoding(false)); }
         catch (Exception ex) { return "Не удалось подготовить режим «Весь компьютер»: " + ex.Message; }
@@ -633,7 +645,11 @@ public sealed partial class VpnCore
         if (p == null) return;
         _stopping = true;
         try { if (!p.HasExited) { p.Kill(true); p.WaitForExit(4000); } } catch { }
-        finally { try { p.Dispose(); } catch { } }
+        finally
+        {
+            try { p.Dispose(); } catch { }
+            TunOwner.Clear();   // штатная остановка: адаптер исчез вместе с sing-box, метка не нужна
+        }
     }
 
     private static int FreePort(int start)

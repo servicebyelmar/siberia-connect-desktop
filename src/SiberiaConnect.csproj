@@ -32,7 +32,18 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
+
+  <!-- Пакет WebView2 для net5.0+ сам подключает ещё и Microsoft.Web.WebView2.Wpf.dll (build/Common.targets).
+       WPF здесь не используется, а эта сборка тянет WindowsBase 5.0.0.0 против 4.0.0.0 из ссылочных сборок .NET (MSB3277).
+       Убираем её из ссылок: пропадает предупреждение и лишняя сборка в публикации. Core и WinForms остаются. -->
+  <Target Name="DropWebView2Wpf" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <_WebView2WpfRef Include="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+      <Reference Remove="@(_WebView2WpfRef)" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <EmbeddedResource Include="Bridge.js" LogicalName="Bridge.js" />

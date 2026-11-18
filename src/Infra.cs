@@ -54,10 +54,79 @@ internal static class AppInfo
     }
 }
 
+/// <summary>
+/// 1.6.0: экземпляр для тестов рядом со стабильной версией. Задаётся ключом <c>--instance id</c> или переменной SC_INSTANCE
+/// (id — a-z, 0-9, «-», до 16 знаков). Без него всё как раньше: общий профиль, общий мьютекс — иначе обновление
+/// 1.5.1 → 1.6.0 не заметит запущенную копию.
+/// С id: свой профиль (%LOCALAPPDATA%\SiberiaConnect.id), своё имя мьютекса и события, а системные действия запрещены:
+/// прокси Windows, автозапуск, повышение прав, cleanup, recovery, сторож, обновление/установщик и режим «Весь компьютер» (TUN).
+/// Запускать экземпляр нужно из своей папки, не из каталога стабильной установки: движки определяются по пути core\.
+/// </summary>
+internal static class AppInstance
+{
+    public static readonly string Id;
+    public static readonly string Error;   // не null — id задан неверно; Main завершает работу до любых действий
+    public static bool Active => Id.Length > 0;
+    public static string MutexName => "SiberiaConnect.SingleInstance.v1" + (Active ? "." + Id : "");
+    public static string ShowEventName => "SiberiaConnect.Show.v1" + (Active ? "." + Id : "");
+
+    static AppInstance()
+    {
+        var raw = FromArgs() ?? Environment.GetEnvironmentVariable("SC_INSTANCE");
+        if (string.IsNullOrEmpty(raw)) { Id = ""; return; }
+        if (System.Text.RegularExpressions.Regex.IsMatch(raw, "^[a-z0-9-]{1,16}$")) { Id = raw; return; }
+        // неверный id не должен молча превратиться в общий профиль: остаёмся «изолированными» и просим Main выйти
+        Id = "invalid";
+        Error = "Неверный идентификатор экземпляра (допустимо a-z, 0-9 и «-», до 16 знаков)";
+    }
+
+    private static string FromArgs()
+    {
+        var a = Environment.GetCommandLineArgs();
+        for (var i = 1; i < a.Length; i++)
+        {
+            if (a[i] == "--instance") return i + 1 < a.Length ? a[i + 1] : "";
+            if (a[i].StartsWith("--instance=", StringComparison.Ordinal)) return a[i].Substring("--instance=".Length);
+        }
+        return null;
+    }
+
+    /// <summary>Папка данных: общая, а для экземпляра — своя (SC_DATA_ROOT, если задан, заменяет %LOCALAPPDATA%).</summary>
+    public static string DataDir()
+    {
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!Active) return Path.Combine(root, "SiberiaConnect");
+        var custom = Environment.GetEnvironmentVariable("SC_DATA_ROOT");
+        if (!string.IsNullOrWhiteSpace(custom)) root = Path.GetFullPath(custom);
+        return Path.Combine(root, "SiberiaConnect." + Id);
+    }
+
+    /// <summary>
+    /// true — запрос к этому хосту запрещён режимом экземпляра. Разрешён только loopback (SC_API_BASE для тестов):
+    /// пустой профиль экземпляра не должен ничего регистрировать на боевом сервере. Без экземпляра всегда false.
+    /// </summary>
+    public static bool DenyRemote(string what, string host)
+    {
+        if (!Active) return false;
+        var h = (host ?? "").Trim('[', ']');
+        if (h.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || (System.Net.IPAddress.TryParse(h, out var ip) && System.Net.IPAddress.IsLoopback(ip))) return false;
+        Log.Write($"instance {Id}: запрещён запрос к {host} — {what}");
+        return true;
+    }
+
+    /// <summary>true — действие запрещено режимом экземпляра (в лог пишется, что именно пропущено).</summary>
+    public static bool Forbid(string what)
+    {
+        if (!Active) return false;
+        Log.Write("instance " + Id + ": запрещено — " + what);
+        return true;
+    }
+}
+
 internal static class Paths
 {
-    public static readonly string Data = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SiberiaConnect");
+    public static readonly string Data = AppInstance.DataDir();
     public static readonly string Logs = Path.Combine(Data, "logs");
     public static readonly string StateFile = Path.Combine(Data, "state.json");      // старый формат (до 1.0.1)
     public static readonly string StateDat = Path.Combine(Data, "state.dat");        // зашифрован DPAPI
@@ -70,6 +139,7 @@ internal static class Paths
     public static readonly string Xray = Path.Combine(CoreDir, "xray.exe");
     public static readonly string SingBox = Path.Combine(CoreDir, "sing-box.exe");
     public static readonly string TunConfig = Path.Combine(Data, "tun-config.json");
+    public static readonly string TunOwner = Path.Combine(Data, "tun.owner");           // 1.6.0: чей адаптер «Весь компьютер» (путь установки), см. Recovery
     public static readonly string PendingLogin = Path.Combine(Data, "login.pending");   // link_v1: код входа из ссылки бота
 
     static Paths()
@@ -135,6 +205,7 @@ public sealed class AppState
     public bool TokenFromInstall { get; set; }              // 1.3.0: вход получен по секрету установки (а не из кабинета)                   // 1.3.0: автовход уже пробовали — повторно не создаём аккаунт
     public string LoginCode { get; set; } = "";             // 1.3.0: код доступа SC-… (показывается в меню)
     public string DeadToken { get; set; } = "";             // 1.5.0: последний отозванный токен — страница не может вернуть его обратно
+    public string DeviceId { get; set; } = "";              // 1.6.0: закреплённый идентификатор ПК (см. Device.Resolve)
 
     // Настройки прокси Windows до включения VPN (чтобы вернуть как было)
     public bool ProxySaved { get; set; }
@@ -210,21 +281,121 @@ public sealed class AppState
     }
 }
 
+/// <summary>
+/// Идентификатор этого ПК для сервера (x-hwid, привязка ключа ACTIVATION_V2, лимит устройств).
+/// 1.6.0: «сильный» id = SHA-256(MachineGuid + UUID платы (Win32_ComputerSystemProduct) + ProcessorId (Win32_Processor)).
+/// WMI может быть закрыт правами/службой или зависнуть — тогда без паники: id считается по одному MachineGuid (как раньше),
+/// приложение при старте никогда не падает.
+/// Чтобы id не «прыгал» (WMI то отвечает, то нет) и не ломал уже привязанные ключи, он закрепляется в состоянии
+/// (AppState.DeviceId): уже зарегистрированная установка остаётся на прежнем id, новая получает сильный.
+/// </summary>
 internal static class Device
 {
-    public static string Id()
+    private const string Suffix = ":com.siberiaconnect.win";
+    private const int WmiTimeoutMs = 4000;
+
+    /// <summary>Идентификатор без закрепления: сильный, при любой неудаче WMI — по MachineGuid.</summary>
+    public static string Id() => Strong() ?? Legacy();
+
+    /// <summary>Как считалось до 1.6.0: только MachineGuid (запасной вариант — имя ПК и пользователя).</summary>
+    public static string Legacy()
     {
-        string raw = "";
+        var raw = MachineGuid();
+        if (string.IsNullOrEmpty(raw)) raw = Environment.MachineName + "|" + Environment.UserName;
+        return Hash("sc:" + raw);
+    }
+
+    /// <summary>Id для этой установки: закреплённый в состоянии; иначе — прежний (если установка уже зарегистрирована на сервере) или сильный.</summary>
+    public static string Resolve(AppState st)
+    {
+        try
+        {
+            var saved = st.DeviceId ?? "";
+            if (saved.Length is >= 8 and <= 80 && saved.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) return saved;
+            var registered = !string.IsNullOrEmpty(st.AuthToken) || !string.IsNullOrEmpty(st.InstallSecret)
+                             || !string.IsNullOrEmpty(st.SubUrl) || st.Servers.Count > 0;
+            var id = registered ? Legacy() : Id();
+            st.DeviceId = id;
+            st.Save();
+            Log.Write($"device: id закреплён ({(registered ? "прежний, установка уже зарегистрирована" : "новый")})");
+            return id;
+        }
+        catch (Exception ex)
+        {
+            Log.Write("device: " + ex.Message);
+            return Legacy();
+        }
+    }
+
+    private static string Hash(string raw)
+    {
+        var h = SHA256.HashData(Encoding.UTF8.GetBytes(raw + Suffix));
+        return "win-" + Convert.ToHexString(h, 0, 12).ToLowerInvariant();
+    }
+
+    private static string MachineGuid()
+    {
         try
         {
             using var k = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64)
                 .OpenSubKey(@"SOFTWARE\Microsoft\Cryptography");
-            raw = k?.GetValue("MachineGuid") as string ?? "";
+            return k?.GetValue("MachineGuid") as string ?? "";
+        }
+        catch { return ""; }
+    }
+
+    /// <summary>MachineGuid + UUID платы + ProcessorId. null — WMI недоступен или не дал ни одного значения (тогда вызывающий берёт Legacy).</summary>
+    private static string Strong()
+    {
+        try
+        {
+            var guid = MachineGuid();
+            if (string.IsNullOrEmpty(guid)) return null;
+            string uuid = null, cpu = null;
+            // WMI иногда зависает (сломанная служба, антивирус) — ждём не дольше WmiTimeoutMs, поток не блокирует запуск
+            var t = Task.Run(() =>
+            {
+                uuid = Clean(Wmi("SELECT UUID FROM Win32_ComputerSystemProduct", "UUID"));
+                cpu = Clean(Wmi("SELECT ProcessorId FROM Win32_Processor", "ProcessorId"));
+            });
+            if (!t.Wait(WmiTimeoutMs)) { Log.Write("device: WMI не ответил — id по MachineGuid"); return null; }
+            if (string.IsNullOrEmpty(uuid) && string.IsNullOrEmpty(cpu)) { Log.Write("device: WMI пуст — id по MachineGuid"); return null; }
+            return Hash("sc2:" + guid + "|" + (uuid ?? "") + "|" + (cpu ?? ""));
+        }
+        catch (Exception ex)
+        {
+            Log.Write("device: WMI недоступен (" + ex.GetType().Name + ") — id по MachineGuid");
+            return null;
+        }
+    }
+
+    private static string Wmi(string query, string prop)
+    {
+        try
+        {
+            using var s = new System.Management.ManagementObjectSearcher(query);
+            foreach (System.Management.ManagementBaseObject o in s.Get())
+            {
+                using (o)
+                {
+                    var v = o[prop]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+                }
+            }
         }
         catch { }
-        if (string.IsNullOrEmpty(raw)) raw = Environment.MachineName + "|" + Environment.UserName;
-        var h = SHA256.HashData(Encoding.UTF8.GetBytes("sc:" + raw + ":com.siberiaconnect.win"));
-        return "win-" + Convert.ToHexString(h, 0, 12).ToLowerInvariant();
+        return null;
+    }
+
+    /// <summary>Заглушки производителей («все нули/F», известные фиктивные UUID) идентификатором не считаем.</summary>
+    private static string Clean(string v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return null;
+        v = v.Trim().ToUpperInvariant();
+        var digits = v.Replace("-", "");
+        if (digits.Length == 0 || digits.All(c => c == '0') || digits.All(c => c == 'F')) return null;
+        if (v is "03000200-0400-0500-0006-000700080009" or "TO BE FILLED BY O.E.M." or "NONE" or "DEFAULT STRING") return null;
+        return v;
     }
 }
 
@@ -237,6 +408,7 @@ internal static class AutoStart
     /// (иначе при входе в Windows каждый раз появлялось бы окно UAC).</summary>
     public static void Set(bool on, bool tun = false)
     {
+        if (AppInstance.Forbid("автозапуск")) return;
         try
         {
             using var k = Registry.CurrentUser.CreateSubKey(RunKey, true);
@@ -276,6 +448,7 @@ internal static class Elevation
     /// <summary>Перезапуск с правами администратора (окно UAC). false — пользователь отказался.</summary>
     public static bool Relaunch(string extraArgs)
     {
+        if (AppInstance.Forbid("перезапуск с правами администратора")) return false;
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath, "--takeover " + extraArgs)
@@ -307,6 +480,7 @@ internal static class SysProxy
 
     public static void Enable(string address, AppState st)
     {
+        if (AppInstance.Forbid("включение системного прокси")) return;
         try
         {
             using var k = Registry.CurrentUser.CreateSubKey(Key, true);
@@ -330,6 +504,7 @@ internal static class SysProxy
 
     public static void Restore(AppState st)
     {
+        if (AppInstance.Forbid("восстановление системного прокси")) return;
         try
         {
             using var k = Registry.CurrentUser.CreateSubKey(Key, true);

@@ -134,6 +134,7 @@ internal static class Guard
 
     public static void Ensure()
     {
+        if (AppInstance.Forbid("запуск сторожа")) return;
         try
         {
             if (_proc != null && !_proc.HasExited) return;
@@ -149,6 +150,7 @@ internal static class Guard
 
     public static void Run(string pidArg)
     {
+        if (AppInstance.Forbid("сторож")) return;
         if (!int.TryParse(pidArg, out var pid) || pid <= 0) return;
         try
         {
@@ -170,7 +172,52 @@ internal static class Guard
     }
 }
 
-/// <summary>Уборка адаптера «Siberia Connect», если он остался без sing-box (сбой, выключение питания).</summary>
+/// <summary>
+/// 1.6.0: метка «этот адаптер «Весь компьютер» поднят вот этой установкой». Пишется перед запуском sing-box,
+/// снимается при штатной остановке. Остаётся только после сбоя — тогда Recovery знает, что адаптер можно убрать.
+/// Имя адаптера у всех версий одинаковое, поэтому по имени понять, чей он, нельзя.
+/// </summary>
+internal static class TunOwner
+{
+    internal sealed record Info(string Exe, string Adapter, int Pid);
+
+    public static void Write()
+    {
+        try
+        {
+            File.WriteAllText(Paths.TunOwner, new JsonObject
+            {
+                ["exe"] = Environment.ProcessPath,
+                ["adapter"] = TunConfigBuilder.InterfaceName,
+                ["pid"] = Environment.ProcessId,
+                ["build"] = AppInfo.Version,
+                ["at"] = DateTime.UtcNow.ToString("o")
+            }.ToJsonString());
+        }
+        catch (Exception ex) { Log.Write("tun owner: " + ex.Message); }
+    }
+
+    public static Info Read()
+    {
+        try
+        {
+            if (!File.Exists(Paths.TunOwner)) return null;
+            var j = JsonNode.Parse(File.ReadAllText(Paths.TunOwner));
+            var exe = j?["exe"]?.GetValue<string>();
+            var adapter = j?["adapter"]?.GetValue<string>();
+            if (string.IsNullOrEmpty(exe) || string.IsNullOrEmpty(adapter)) return null;
+            return new Info(exe, adapter, j["pid"]?.GetValue<int>() ?? 0);
+        }
+        catch { return null; }
+    }
+
+    public static void Clear()
+    {
+        try { if (File.Exists(Paths.TunOwner)) File.Delete(Paths.TunOwner); } catch { }
+    }
+}
+
+/// <summary>Уборка адаптера «Весь компьютер» этой установки, если он остался без sing-box (сбой, выключение питания).</summary>
 internal static class Recovery
 {
     private const string NetClass = @"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}";
@@ -180,12 +227,29 @@ internal static class Recovery
 
     public static void Sweep()
     {
+        if (AppInstance.Forbid("recovery адаптера")) return;
         try
         {
             if (!Elevation.IsAdmin) return;              // без прав администратора адаптер не создавался и не удалится
             if (VpnCore.OurCoreRunning(Paths.SingBox)) return;
+
+            // 1.6.0: убираем только адаптер, который по метке поднят ЭТОЙ установкой (тот же путь exe) и чей владелец уже не работает.
+            // Раньше адаптер выбирался по префиксу имени — так можно было удалить адаптер другой версии, работающей рядом.
+            var owner = TunOwner.Read();
+            if (owner == null) return;   // метки нет: адаптер (если есть) чужой или от версии без метки — не трогаем
+            if (!Cleanup.SamePath(owner.Exe, Environment.ProcessPath))
+            {
+                Log.Write($"recovery: метка адаптера принадлежит другой установке ({owner.Exe}) — не трогаю");
+                return;
+            }
+            if (owner.Pid > 0 && owner.Pid != Environment.ProcessId && IsAlive(owner.Pid))
+            {
+                Log.Write($"recovery: владелец адаптера (pid {owner.Pid}) ещё работает — не трогаю");
+                return;
+            }
+            var adapterName = owner.Adapter;
             var stale = NetworkInterface.GetAllNetworkInterfaces()
-                .Where(n => n.Name.StartsWith(TunConfigBuilder.InterfaceName, StringComparison.OrdinalIgnoreCase))
+                .Where(n => string.Equals(n.Name, adapterName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             foreach (var n in stale)
             {
@@ -195,12 +259,21 @@ internal static class Recovery
                 Run("netsh.exe", $"interface ipv6 delete address \"{n.Name}\" {TunIp6}");
                 RemoveDevice(n.Id);
             }
-            // выключенные и скрытые НАШИ адаптеры в списке выше не видны — убираем их через PowerShell (только «Siberia Connect*»)
-            Run("powershell.exe", "-NoProfile -NonInteractive -Command \"" +
-                "Get-NetAdapter -Name '" + TunConfigBuilder.InterfaceName + "*' -IncludeHidden -ErrorAction SilentlyContinue | " +
-                "Where-Object { $_.Status -ne 'Up' } | ForEach-Object { pnputil /remove-device $_.PnPDeviceID | Out-Null }\"");
+            // выключенные и скрытые адаптеры в списке выше не видны — убираем их через PowerShell (только адаптер с точным именем из метки)
+            if (!adapterName.Any(c => c is '\'' or '"' or '`' or '$' or '*' or '?' or '[' or ']'))
+                Run("powershell.exe", "-NoProfile -NonInteractive -Command \"" +
+                    "Get-NetAdapter -Name '" + adapterName + "' -IncludeHidden -ErrorAction SilentlyContinue | " +
+                    "Where-Object { $_.Status -ne 'Up' } | ForEach-Object { pnputil /remove-device $_.PnPDeviceID | Out-Null }\"");
+            TunOwner.Clear();   // всё убрано — метка больше не нужна
         }
         catch (Exception ex) { Log.Write("recovery: " + ex.Message); }
+    }
+
+    private static bool IsAlive(int pid)
+    {
+        try { using var p = Process.GetProcessById(pid); return !p.HasExited; }
+        catch (ArgumentException) { return false; }
+        catch { return true; }   // не удалось определить — считаем работающим (безопаснее не трогать)
     }
 
     private static bool RemoveDevice(string netCfgId)

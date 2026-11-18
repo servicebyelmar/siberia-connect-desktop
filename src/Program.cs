@@ -4,12 +4,18 @@ namespace SiberiaConnect;
 
 internal static class Program
 {
-    private const string MutexName = "SiberiaConnect.SingleInstance.v1";
-    private const string ShowEventName = "SiberiaConnect.Show.v1";
+    // имена мьютекса и события — AppInstance.MutexName / ShowEventName: без экземпляра прежние (…v1), с ним — с суффиксом id
+    private static string MutexName => AppInstance.MutexName;
+    private static string ShowEventName => AppInstance.ShowEventName;
 
     [STAThread]
     private static void Main(string[] args)
     {
+        if (AppInstance.Error != null)
+        {
+            MessageBox.Show(AppInstance.Error, "Siberia Connect", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
         if (args.Contains("--cleanup"))
         {
             Cleanup.Run(args.Contains("--update"));
@@ -18,6 +24,11 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--guard")
         {
             Guard.Run(args[1]);   // 1.1.0: сторож — без окна и без проверки «уже запущено»
+            return;
+        }
+        if (args.Length >= 3 && args[0] == "--selftest-api")
+        {
+            ApiSelfTest.Run(args[1], args[2]);   // CI: nodes/rank и его сбои на локальном сервере (только в режиме экземпляра)
             return;
         }
         if (args.Length >= 2 && args[0] == "--selftest")
@@ -50,7 +61,8 @@ internal static class Program
 
         using var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
 
-        Log.Write($"Start v{AppInfo.Version} args=[{string.Join(" ", args)}] os={Environment.OSVersion.VersionString}");
+        Log.Write($"Start v{AppInfo.Version} args=[{string.Join(" ", args)}] os={Environment.OSVersion.VersionString}"
+                  + (AppInstance.Active ? $" instance={AppInstance.Id} data={Paths.Data}" : ""));
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => Log.Write("UI error: " + e.Exception);
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
@@ -111,14 +123,39 @@ internal static class DeepLink
 /// <summary>Удаление/обновление: остановить VPN, вернуть настройки прокси, убрать автозапуск.</summary>
 internal static class Cleanup
 {
+    /// <summary>Один и тот же файл (без учёта регистра и «..»). Пустой или некорректный путь — не совпадает.</summary>
+    internal static bool SamePath(string a, string b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+        try { return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase); }
+        catch { return false; }
+    }
+
     public static void Run(bool update = false)
     {
+        if (AppInstance.Forbid("cleanup")) return;
         try
         {
             var me = Environment.ProcessId;
+            // Убиваем только процессы из ЭТОЙ установки: другая версия рядом (например, стабильная) остаётся нетронутой.
+            // Путь не прочитался (процесс с повышенными правами и т. п.) — считаем чужим и не трогаем.
             foreach (var p in System.Diagnostics.Process.GetProcessesByName("SiberiaConnect"))
             {
-                try { if (p.Id != me) { p.Kill(true); p.WaitForExit(3000); } } catch { }
+                try
+                {
+                    if (p.Id == me) continue;
+                    string path = null;
+                    try { path = p.MainModule?.FileName; } catch { }
+                    if (!SamePath(path, Environment.ProcessPath))
+                    {
+                        Log.Write($"cleanup: пропускаю чужой процесс {p.Id} ({path ?? "путь недоступен"})");
+                        continue;
+                    }
+                    p.Kill(true);
+                    p.WaitForExit(3000);
+                }
+                catch { }
+                finally { try { p.Dispose(); } catch { } }
             }
             VpnCore.KillOrphans();
             var st = AppState.Load();
@@ -169,5 +206,41 @@ internal static class SelfTest
         try { Backup.Open(box, "снежинка-123"); } catch (CryptographicException) { rejected = true; }
         if (!rejected) throw new Exception("backup: испорченный файл не отклонён");
         File.WriteAllText(Path.Combine(dir, "backup-ok.txt"), "ok");
+        InstanceChecks(dir);
+    }
+
+    /// <summary>Без SC_INSTANCE имена и профиль прежние (совместимость обновления); с ним — с суффиксом, действия запрещены.</summary>
+    private static void InstanceChecks(string dir)
+    {
+        const string baseMutex = "SiberiaConnect.SingleInstance.v1", baseShow = "SiberiaConnect.Show.v1";
+        if (AppInstance.Error != null) throw new Exception("instance: " + AppInstance.Error);
+        if (!AppInstance.Active)
+        {
+            var legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SiberiaConnect");
+            if (AppInstance.MutexName != baseMutex || AppInstance.ShowEventName != baseShow)
+                throw new Exception("instance: без SC_INSTANCE имена мьютекса/события изменились");
+            if (!string.Equals(Paths.Data, legacy, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(Paths.StateDat, Path.Combine(legacy, "state.dat"), StringComparison.OrdinalIgnoreCase))
+                throw new Exception("instance: без SC_INSTANCE изменился путь профиля");
+            if (AppInstance.Forbid("selftest")) throw new Exception("instance: без SC_INSTANCE действия не должны запрещаться");
+            if (AppInstance.DenyRemote("selftest", "sibirapp.duckdns.org")) throw new Exception("instance: без SC_INSTANCE запросы к серверу не должны запрещаться");
+            File.WriteAllText(Path.Combine(dir, "instance-default-ok.txt"), "ok");
+            return;
+        }
+        var id = AppInstance.Id;
+        if (AppInstance.MutexName != baseMutex + "." + id || AppInstance.ShowEventName != baseShow + "." + id)
+            throw new Exception("instance: имена мьютекса/события без суффикса");
+        if (!Paths.Data.EndsWith("SiberiaConnect." + id, StringComparison.OrdinalIgnoreCase))
+            throw new Exception("instance: профиль без суффикса: " + Paths.Data);
+        if (!Paths.StateDat.StartsWith(Paths.Data, StringComparison.OrdinalIgnoreCase)
+            || !Paths.TunOwner.StartsWith(Paths.Data, StringComparison.OrdinalIgnoreCase)
+            || !Paths.WebData.StartsWith(Paths.Data, StringComparison.OrdinalIgnoreCase))
+            throw new Exception("instance: файлы состояния вне профиля экземпляра");
+        if (!AppInstance.Forbid("selftest")) throw new Exception("instance: Forbid не сработал");
+        if (!AppInstance.DenyRemote("selftest", "sibirapp.duckdns.org") || !AppInstance.DenyRemote("selftest", "sibir-cloud-api.ru"))
+            throw new Exception("instance: запросы к боевому серверу не запрещены");
+        if (AppInstance.DenyRemote("selftest", "127.0.0.1") || AppInstance.DenyRemote("selftest", "localhost") || AppInstance.DenyRemote("selftest", "[::1]"))
+            throw new Exception("instance: loopback должен быть разрешён");
+        File.WriteAllText(Path.Combine(dir, "instance-ok.txt"), id + "|" + Paths.Data);
     }
 }

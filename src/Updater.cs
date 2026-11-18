@@ -106,6 +106,7 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJtbsgSW0nbzyKlp8jluMlmB2AOr5
     /// </summary>
     public static async Task<Manifest> Check()
     {
+        if (AppInstance.Forbid("Updater.Check")) return null;
         try
         {
             var m = await Fetch();
@@ -127,6 +128,7 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJtbsgSW0nbzyKlp8jluMlmB2AOr5
     /// <summary>Скачать установщик и сверить SHA-256 с подписанным манифестом. null — файл готов, иначе текст ошибки.</summary>
     public static async Task<string> Download(Manifest m, Action<int> progress)
     {
+        if (AppInstance.Forbid("Updater.Download")) return "Режим экземпляра: обновление запрещено";
         if (ReadyVersion == m.Version && File.Exists(_readyFile)) return null;
         if (Interlocked.Exchange(ref _busy, 1) == 1) return "Обновление уже скачивается";
         try
@@ -211,6 +213,7 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJtbsgSW0nbzyKlp8jluMlmB2AOr5
     /// <summary>Скачать (если ещё не скачано), проверить и запустить установщик. null — установщик запущен, иначе текст ошибки.</summary>
     public static async Task<string> Install(bool reconnect, Action<int> progress)
     {
+        if (AppInstance.Forbid("Updater.Install")) return "Режим экземпляра: установка запрещена";
         try
         {
             var m = await Fetch();

@@ -139,7 +139,7 @@
   function buildChrome() {
     var top = document.createElement('div');
     top.className = 'sc-top';
-    top.innerHTML = '<i class="sc-brand">Siberia Connect</i><button class="sc-x" id="sc-x" type="button" aria-label="Свернуть в трей" title="Свернуть в трей">×</button>';
+    top.innerHTML = '<i class="sc-brand">Siberia Connect</i><button class="sc-x" id="sc-x" type="button" aria-label="Свернуть в трей" >×</button>';
     top.addEventListener('mousedown', function (e) {
       if (e.button === 0 && !(e.target.closest && e.target.closest('.sc-x'))) send('drag');
     });
@@ -478,33 +478,13 @@
     (document.head || document.documentElement).appendChild(st);
     var el = document.createElement('div'); el.id = 'sc-auth';
     el.innerHTML = '<h1>Вход в Siberia Connect</h1><div class="sc-au-g">' +
-      '<section class="sc-au-c" aria-labelledby="sc-au-h1"><h2 id="sc-au-h1">Быстрый вход через Telegram или сайт</h2>' +
-      '<div class="sc-au-qr ov" id="sc-au-qr"><div id="sc-au-img"></div><div class="sc-au-ov"><span id="sc-au-ovt">Готовим код…</span>' +
-      '<button type="button" class="sc-au-b" id="sc-au-new" style="display:none">Обновить код</button></div></div>' +
-      '<p class="sc-au-s">Отсканируйте камерой телефона или откройте в Telegram, чтобы подтвердить вход в один клик</p>' +
-      '<div class="sc-au-s" id="sc-au-cap" style="display:none">Или введите этот код в боте:</div><div class="sc-au-code" id="sc-au-code" aria-live="polite"></div>' +
-      '<button type="button" class="sc-au-b" id="sc-au-open" style="display:none">Открыть для подтверждения</button></section>' +
-      '<section class="sc-au-c" aria-labelledby="sc-au-h2"><h2 id="sc-au-h2">У вас уже есть мастер-ключ?</h2>' +
+      '<section class="sc-au-c" aria-labelledby="sc-au-h2"><h2 id="sc-au-h2">Войдите по мастер-ключу</h2>' +
       '<input id="sc-au-in" class="sc-au-in" autocomplete="off" spellcheck="false" aria-label="Мастер-ключ" placeholder="Мастер-ключ (Ctrl+V)">' +
       '<div id="sc-au-msg" class="sc-rd-msg" role="status" aria-live="polite" style="width:100%;text-align:left"></div>' +
       '<div class="sc-au-row"><button type="button" class="sc-au-b" id="sc-au-paste">Вставить</button>' +
       '<button type="button" class="sc-au-b p sc-au-b2" id="sc-au-go">Войти по ключу</button></div>' +
-      '<button type="button" class="sc-au-b" id="sc-au-where" style="width:100%">Где взять мастер-ключ? (Подробнее)</button></section></div>';
+      '<p class="sc-au-s">Мастер-ключ доступен в личном кабинете на сайте или в Telegram-боте</p></section></div>';
     document.body.appendChild(el);
-    var h = document.createElement('div'); h.id = 'sc-au-help'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true');
-    h.innerHTML = '<div class="box"><span class="t">Как получить мастер-ключ?</span>' +
-      '<p>1. Откройте наш Telegram-бот <b>@SibirConnectBot</b> (раздел «Мой ключ») или личный кабинет на сайте sibir-cloud-api.site/account.</p>' +
-      '<p>2. Скопируйте ваш персональный мастер-ключ и вставьте его в это окно.</p>' +
-      '<p style="color:#9CC3E8">Один мастер-ключ работает на всех ваших устройствах (телефон, ТВ, ПК).</p>' +
-      '<button type="button" class="sc-au-b p" id="sc-au-hclose" style="width:100%;margin-top:6px">Понятно</button></div>';
-    document.body.appendChild(h);
-    function help(on) { h.classList.toggle('on', on); setTimeout(function () { try { (on ? $('sc-au-hclose') : $('sc-au-where')).focus(); } catch (e) {} }, 30); }
-    $('sc-au-where').addEventListener('click', function () { help(true); });
-    $('sc-au-hclose').addEventListener('click', function () { help(false); });
-    h.addEventListener('click', function (e) { if (e.target === h) help(false); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && h.classList.contains('on')) { help(false); e.preventDefault(); } }, true);
-    $('sc-au-new').addEventListener('click', function () { auNew(); });
-    $('sc-au-open').addEventListener('click', function () { try { if (AU.pair) window.SCNative.openExternal(AU.pair.qr_url); } catch (e) {} });
     var inp = $('sc-au-in');
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') auGo(); });
     inp.addEventListener('paste', function () { setTimeout(function () { inp.value = inp.value.trim(); }, 0); });
@@ -585,11 +565,6 @@
     var sh = document.getElementById('wsheet');
     el.classList.toggle('on', need);
     el.classList.toggle('hold', need && !!sh && sh.classList.contains('on'));
-    var live = need && !document.hidden && AU.phase !== 'done';
-    if (!live) { auStop(); if (AU.phase === 'wait') AU.phase = 'paused'; return; }
-    if (AU.phase === 'idle' || AU.phase === 'paused' || (AU.phase === 'error' && Date.now() - AU.lastTry > 15000)) {
-      if (AU.phase === 'paused' && AU.pair && Date.now() < AU.ends) { AU.phase = 'wait'; auSchedule(); } else auNew();
-    }
   }
   document.addEventListener('visibilitychange', function () { if (document.hidden) auStop(); else setTimeout(authTick, 0); });
 

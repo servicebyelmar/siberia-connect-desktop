@@ -210,9 +210,24 @@ public sealed partial class VpnCore
     /// <summary>Подключаемся к одному серверу: после старта ядра проверяем, что 204 действительно проходит (две попытки).</summary>
     private bool VerifyCore()
     {
-        for (var i = 0; i < 2; i++)
-            if (Measure(_httpPort, HealthTimeoutMs).GetAwaiter().GetResult() > 0) return true;
+        // 3 попытки: первое рукопожатие Reality на холодном ядре бывает дольше 3 с; запасной адрес — если gstatic режется провайдером
+        for (var i = 0; i < 3; i++)
+        {
+            if (Measure(_httpPort, i == 0 ? HealthTimeoutMs : 6000).GetAwaiter().GetResult() > 0) return true;
+            if (Ping204Alt(_httpPort).GetAwaiter().GetResult()) return true;
+        }
         return false;
+    }
+
+    private static async Task<bool> Ping204Alt(int port)
+    {
+        try
+        {
+            using var http = ViaPort(port, 5000);
+            using var r = await http.GetAsync("https://cp.cloudflare.com/generate_204");
+            return r.StatusCode == HttpStatusCode.NoContent;
+        }
+        catch { return false; }
     }
 
     private Dictionary<string, int> Probe(List<ServerItem> list)

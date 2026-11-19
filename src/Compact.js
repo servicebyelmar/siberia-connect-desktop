@@ -693,7 +693,7 @@
       (d.status === 'blocked' ? '' : '<button class="scp-renew" type="button" onclick="scRenew()">' + (act ? 'Продлить подписку' : 'Выбрать тариф') + '</button>') +
       '</div><div class="scp-grid">' +
       tile('dev', 'Устройства', act ? (v.registered || 0) + ' из ' + lim : '—', 'nxDevices()', !act) +
-      tile('gift', 'Пригласить друга', 'другу +6 дней · тебе +30', 'scRef()') +
+      tile('gift', 'Пригласить друга', 'бонус, когда друг оплатит', 'scRef()') +
       tile('cab', 'Личный кабинет', 'sibir-cloud-api.site', 'scSite()') +
       tile('sup', 'Поддержка', 'ответим в приложении', "openPage('support','profile')") +
       '</div></div>';
@@ -713,9 +713,10 @@
       return;
     }
     window.__scLink = r.link; window.__scShare = r.share;
-    sheet(head + '<p>Другу — <b>' + r.friend_days + ' ' + dword(r.friend_days) + '</b> бесплатно вместо ' + r.trial_days + '.<br>' +
-      'Тебе — <b>+' + r.bonus + ' дней</b>, когда друг оплатит тариф.<br>' +
-      'Каждые ' + r.goal + ' оплативших — ещё <b>+' + r.goal_days + ' дней</b>.</p>' +
+    /* ref_v4 (19.11.2026): другу — пробный + бонус (по умолчанию 2 + 1 дня, лимит ГБ); тебе — дни ТОЛЬКО за первую оплату друга. Цифры — с сервера. */
+    var pay = r.days_pay || r.bonus || 7;
+    sheet(head + '<p>Другу — <b>' + r.friend_days + ' ' + dword(r.friend_days) + '</b> бесплатно' + (r.trial_gb ? ' (' + r.trial_gb + ' ГБ на тест)' : '') + '.<br>' +
+      'Тебе — <b>+' + pay + ' ' + dword(pay) + '</b>, когда друг оформит первую подписку.</p>' +
       '<div class="keybox" onclick="copyText(__scLink,\'✅ Ссылка скопирована\')">' + H(r.link) + '</div>' +
       '<button class="btn" onclick="openTg(__scShare)">📤 Отправить другу</button>' +
       '<button class="btn ghost" onclick="closeSheet()">Закрыть</button>');

@@ -270,12 +270,16 @@
   /* ───── 1.5.0: одно поле для ключа, кода и номера подписки (тип определяет сервер) ───── */
   var rdBusy = false;
   function esc(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function rdMsg(t, cls) { var m = $('sc-rd-msg'); if (m) { m.textContent = t || ''; m.className = 'sc-rd-msg ' + (cls || ''); } }
+  function rdMsg(t, cls) { ['sc-rd-msg', 'sc-au-msg'].forEach(function (id) { var m = $(id); if (m) { m.textContent = t || ''; m.className = 'sc-rd-msg ' + (cls || ''); } }); }
   function rdState(b) {
     rdBusy = b;
     var g = $('sc-rd-go'), i = $('sc-rd-in');
     if (g) { g.disabled = b; g.textContent = b ? 'Проверяю…' : 'Войти'; }
     if (i) i.disabled = b;
+    var g2 = $('sc-au-go'), i2 = $('sc-au-in'), p2 = $('sc-au-paste');
+    if (g2) { g2.disabled = b; g2.textContent = b ? 'Проверяю…' : 'Войти по ключу'; }
+    if (i2) i2.disabled = b;
+    if (p2) p2.disabled = b;
   }
   window.scRedeemOpen = function () {
     hideSettings();
@@ -344,6 +348,250 @@
     if (ev.stage === 'ok') { try { closeSheet(); } catch (e) {} try { toast('✅ ' + (ev.message || 'Ключ перенесён') + ' — подключаю'); } catch (e) {} return; }
     rbMsg('❌ ' + (ev.message || 'Не получилось'), 'er');
   }
+
+  /* ───── 1.7.0: единый экран входа — QR / короткий код (device flow) + Мастер-ключ ─────
+     Показывается поверх страницы, пока нет входа. Опрос /tv/pair/poll идёт только когда экран виден и окно не скрыто;
+     при подтверждении токен кладётся в localStorage('sc_tok') — Bridge.js сам передаёт его приложению (AdoptToken). */
+  var API = location.origin + '/app/api/v1/';
+  var AU = { pair: null, ends: 0, timer: 0, phase: 'idle', lastTry: 0 };
+
+  /* QR (байтовый режим, коррекция M, версии 1–6; ISO 18004). Возвращает матрицу true/false или null. */
+  var QR = (function () {
+    var EXP = [], LOG = [];
+    (function () { var x = 1; for (var i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 256) x ^= 0x11D; } })();
+    function mul(a, b) { return a && b ? EXP[(LOG[a] + LOG[b]) % 255] : 0; }
+    function rsGen(n) { var g = [1]; for (var i = 0; i < n; i++) { var r = new Array(g.length + 1).fill(0); for (var j = 0; j < g.length; j++) { r[j] ^= g[j]; r[j + 1] ^= mul(g[j], EXP[i]); } g = r; } return g; }
+    function rsRem(data, n) { var g = rsGen(n), res = new Array(n).fill(0); data.forEach(function (b) { var f = b ^ res.shift(); res.push(0); for (var i = 0; i < n; i++) res[i] ^= mul(g[i + 1], f); }); return res; }
+    /* версия → [блоков, данных в блоке, EC на блок] для уровня M */
+    var T = { 1: [1, 16, 10], 2: [1, 28, 16], 3: [1, 44, 26], 4: [2, 32, 18], 5: [2, 43, 24], 6: [4, 27, 16] };
+    var AL = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34] };
+    function utf8(s) { return Array.prototype.slice.call(new TextEncoder().encode(s)); }
+    function make(text) {
+      var bytes = utf8(text), v = 0;
+      for (var k = 1; k <= 6; k++) if (bytes.length <= T[k][0] * T[k][1] - 2) { v = k; break; }
+      if (!v) return null;
+      var nb = T[v][0], dl = T[v][1], ec = T[v][2], cap = nb * dl, bits = [];
+      function put(val, len) { for (var i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); }
+      put(4, 4); put(bytes.length, 8); bytes.forEach(function (b) { put(b, 8); });
+      put(0, Math.min(4, cap * 8 - bits.length)); while (bits.length % 8) bits.push(0);
+      var cw = []; for (var i = 0; i < bits.length; i += 8) { var b = 0; for (var j = 0; j < 8; j++) b = (b << 1) | bits[i + j]; cw.push(b); }
+      for (var pad = 0xEC; cw.length < cap; pad ^= 0xEC ^ 0x11) cw.push(pad);
+      var blocks = [], ecs = [];
+      for (var q = 0; q < nb; q++) { var d = cw.slice(q * dl, (q + 1) * dl); blocks.push(d); ecs.push(rsRem(d, ec)); }
+      var all = [];
+      for (var c = 0; c < dl; c++) blocks.forEach(function (d) { all.push(d[c]); });
+      for (var c2 = 0; c2 < ec; c2++) ecs.forEach(function (e) { all.push(e[c2]); });
+      var n = 17 + 4 * v, M = [], F = [];
+      for (var y = 0; y < n; y++) { M.push(new Array(n).fill(false)); F.push(new Array(n).fill(false)); }
+      function fn(x, y2, dark) { M[y2][x] = !!dark; F[y2][x] = true; }
+      function finder(cx, cy) { for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) { var x = cx + dx, y2 = cy + dy; if (x < 0 || y2 < 0 || x >= n || y2 >= n) continue; var di = Math.max(Math.abs(dx), Math.abs(dy)); fn(x, y2, di !== 2 && di !== 4); } }
+      finder(3, 3); finder(n - 4, 3); finder(3, n - 4);
+      for (var t = 0; t < n; t++) { fn(6, t, t % 2 === 0); fn(t, 6, t % 2 === 0); }
+      var ap = AL[v];
+      ap.forEach(function (ay) { ap.forEach(function (ax) {
+        if ((ax === 6 && ay === 6) || (ax === 6 && ay === ap[ap.length - 1]) || (ax === ap[ap.length - 1] && ay === 6)) return;
+        for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) fn(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }); });
+      function fmt(mask) {
+        var data = mask, rem = data;                              /* уровень M = 00, затем 3 бита маски */
+        for (var i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+        var b = ((data << 10) | rem) ^ 0x5412;
+        function g(i2) { return ((b >>> i2) & 1) === 1; }
+        for (var i3 = 0; i3 <= 5; i3++) fn(8, i3, g(i3));
+        fn(8, 7, g(6)); fn(8, 8, g(7)); fn(7, 8, g(8));
+        for (var i4 = 9; i4 < 15; i4++) fn(14 - i4, 8, g(i4));
+        for (var i5 = 0; i5 < 8; i5++) fn(n - 1 - i5, 8, g(i5));
+        for (var i6 = 8; i6 < 15; i6++) fn(8, n - 15 + i6, g(i6));
+        fn(8, n - 8, true);
+      }
+      fmt(0);                                                     /* резервируем области формата */
+      var p = 0;
+      for (var right = n - 1; right >= 1; right -= 2) {
+        if (right === 6) right = 5;
+        for (var vert = 0; vert < n; vert++) for (var j2 = 0; j2 < 2; j2++) {
+          var x2 = right - j2, up = ((right + 1) & 2) === 0, y3 = up ? n - 1 - vert : vert;
+          if (!F[y3][x2] && p < all.length * 8) { M[y3][x2] = ((all[p >>> 3] >>> (7 - (p & 7))) & 1) === 1; p++; }
+        }
+      }
+      var MASK = [function (x, y) { return (x + y) % 2 === 0; }, function (x, y) { return y % 2 === 0; }, function (x) { return x % 3 === 0; },
+        function (x, y) { return (x + y) % 3 === 0; }, function (x, y) { return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; },
+        function (x, y) { return x * y % 2 + x * y % 3 === 0; }, function (x, y) { return (x * y % 2 + x * y % 3) % 2 === 0; },
+        function (x, y) { return ((x + y) % 2 + x * y % 3) % 2 === 0; }];
+      function applyMask(m) { for (var y4 = 0; y4 < n; y4++) for (var x3 = 0; x3 < n; x3++) if (!F[y4][x3] && MASK[m](x3, y4)) M[y4][x3] = !M[y4][x3]; }
+      function penalty() {
+        var pn = 0, dark = 0;
+        for (var a = 0; a < n; a++) for (var dir = 0; dir < 2; dir++) {
+          var run = 1;
+          for (var b2 = 1; b2 < n; b2++) {
+            var cur = dir ? M[b2][a] : M[a][b2], prev = dir ? M[b2 - 1][a] : M[a][b2 - 1];
+            if (cur === prev) { run++; if (run === 5) pn += 3; else if (run > 5) pn++; } else run = 1;
+          }
+        }
+        for (var y5 = 0; y5 < n; y5++) for (var x4 = 0; x4 < n; x4++) {
+          if (M[y5][x4]) dark++;
+          if (x4 + 1 < n && y5 + 1 < n && M[y5][x4] === M[y5][x4 + 1] && M[y5][x4] === M[y5 + 1][x4] && M[y5][x4] === M[y5 + 1][x4 + 1]) pn += 3;
+        }
+        return pn + Math.floor(Math.abs(dark * 20 - n * n * 10) / (n * n)) * 10;
+      }
+      var best = 0, bestP = 1e9;
+      for (var m = 0; m < 8; m++) { applyMask(m); fmt(m); var sc = penalty(); if (sc < bestP) { bestP = sc; best = m; } applyMask(m); }
+      applyMask(best); fmt(best);
+      return M;
+    }
+    return { make: make };
+  })();
+  window.__scQr = QR.make;
+
+  function qrSvg(text) {
+    var M = QR.make(text);
+    if (!M) return '';
+    var n = M.length, q = 3, d = '';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (M[y][x]) d += 'M' + (x + q) + ' ' + (y + q) + 'h1v1h-1z';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + (n + 2 * q) + ' ' + (n + 2 * q) + '" shape-rendering="crispEdges" role="img" ' +
+      'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#050D1A"/></svg>';
+  }
+
+  var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:34px;bottom:0;z-index:50;overflow-y:auto;background:#060F2A;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#DFF1FF}' +
+    '#sc-auth.on{display:block}#sc-auth.hold{display:none}' +
+    '#sc-auth h1{font-size:19px;margin:6px 0 12px;text-align:center}' +
+    '.sc-au-g{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;max-width:900px;margin:0 auto}' +
+    '@media (min-width:720px){.sc-au-g{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}' +
+    '.sc-au-c{background:#102444;border:1px solid #1C5A80;border-radius:18px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}' +
+    '.sc-au-c h2{font-size:15px;margin:0}.sc-au-s{font-size:12.5px;line-height:1.5;color:#9CC3E8;margin:0}' +
+    '.sc-au-qr{position:relative;width:184px;height:184px;border-radius:14px;background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
+    '.sc-au-qr svg{width:100%;height:100%;display:block}#sc-au-img{width:100%;height:100%}' +
+    '.sc-au-ov{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(255,255,255,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#1B2B44;font-size:13px;padding:8px}' +
+    '.sc-au-qr.ov .sc-au-ov{display:flex}.sc-au-qr.ov svg{visibility:hidden}' +
+    '.sc-au-code{font:700 28px/1 Consolas,monospace;letter-spacing:.14em;color:#00D2FF}' +
+    '.sc-au-in{width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;border:1px solid rgba(140,200,255,.3);background:rgba(0,0,0,.25);color:#fff;font-size:14px;padding:0 12px}' +
+    '.sc-au-in:focus{outline:none;border-color:#7fd3ff;box-shadow:0 0 0 3px rgba(127,211,255,.2)}' +
+    '.sc-au-row{display:flex;gap:8px;width:100%}.sc-au-row>*{flex:1}.sc-au-row>.sc-au-b2{flex:2}' +
+    '.sc-au-b{min-height:44px;border-radius:12px;border:1px solid rgba(127,211,255,.4);background:rgba(10,30,70,.9);color:#cfeaff;font:inherit;font-size:14px;cursor:pointer;padding:0 12px}' +
+    '.sc-au-b.p{background:linear-gradient(90deg,#00D2FF,#0080FF);color:#03121F;border:0;font-weight:700}' +
+    '.sc-au-b:disabled{opacity:.55;cursor:default}.sc-au-b:focus-visible,.sc-au-in:focus-visible{outline:3px solid #fff;outline-offset:2px}' +
+    '#sc-au-help{position:fixed;left:0;right:0;top:0;bottom:0;z-index:60;background:rgba(2,8,20,.78);display:none;align-items:center;justify-content:center;padding:18px}' +
+    '#sc-au-help.on{display:flex}#sc-au-help .box{background:#102444;border:1px solid #1C5A80;border-radius:18px;padding:18px;max-width:420px;text-align:left;font-size:13.5px;line-height:1.6}' +
+    '#sc-au-help .t{display:block;font-size:16px;font-weight:700;margin-bottom:8px}#sc-au-help p{margin:0 0 8px}';
+
+  function auBuild() {
+    var st = document.createElement('style'); st.id = 'scc-au-css'; st.textContent = AU_CSS;
+    (document.head || document.documentElement).appendChild(st);
+    var el = document.createElement('div'); el.id = 'sc-auth';
+    el.innerHTML = '<h1>Вход в Siberia Connect</h1><div class="sc-au-g">' +
+      '<section class="sc-au-c" aria-labelledby="sc-au-h1"><h2 id="sc-au-h1">Быстрый вход через Telegram или сайт</h2>' +
+      '<div class="sc-au-qr ov" id="sc-au-qr"><div id="sc-au-img"></div><div class="sc-au-ov"><span id="sc-au-ovt">Готовим код…</span>' +
+      '<button type="button" class="sc-au-b" id="sc-au-new" style="display:none">Обновить код</button></div></div>' +
+      '<p class="sc-au-s">Отсканируйте камерой телефона или откройте в Telegram, чтобы подтвердить вход в один клик</p>' +
+      '<div class="sc-au-s" id="sc-au-cap" style="display:none">Или введите этот код в боте:</div><div class="sc-au-code" id="sc-au-code" aria-live="polite"></div>' +
+      '<button type="button" class="sc-au-b" id="sc-au-open" style="display:none">Открыть для подтверждения</button></section>' +
+      '<section class="sc-au-c" aria-labelledby="sc-au-h2"><h2 id="sc-au-h2">У вас уже есть мастер-ключ?</h2>' +
+      '<input id="sc-au-in" class="sc-au-in" autocomplete="off" spellcheck="false" aria-label="Мастер-ключ" placeholder="Мастер-ключ (Ctrl+V)">' +
+      '<div id="sc-au-msg" class="sc-rd-msg" role="status" aria-live="polite" style="width:100%;text-align:left"></div>' +
+      '<div class="sc-au-row"><button type="button" class="sc-au-b" id="sc-au-paste">Вставить</button>' +
+      '<button type="button" class="sc-au-b p sc-au-b2" id="sc-au-go">Войти по ключу</button></div>' +
+      '<button type="button" class="sc-au-b" id="sc-au-where" style="width:100%">Где взять мастер-ключ? (Подробнее)</button></section></div>';
+    document.body.appendChild(el);
+    var h = document.createElement('div'); h.id = 'sc-au-help'; h.setAttribute('role', 'dialog'); h.setAttribute('aria-modal', 'true');
+    h.innerHTML = '<div class="box"><span class="t">Как получить мастер-ключ?</span>' +
+      '<p>1. Откройте наш Telegram-бот <b>@SibirConnectBot</b> (раздел «Мой ключ») или личный кабинет на сайте sibir-cloud-api.site/account.</p>' +
+      '<p>2. Скопируйте ваш персональный мастер-ключ и вставьте его в это окно.</p>' +
+      '<p style="color:#9CC3E8">Один мастер-ключ работает на всех ваших устройствах (телефон, ТВ, ПК).</p>' +
+      '<button type="button" class="sc-au-b p" id="sc-au-hclose" style="width:100%;margin-top:6px">Понятно</button></div>';
+    document.body.appendChild(h);
+    function help(on) { h.classList.toggle('on', on); setTimeout(function () { try { (on ? $('sc-au-hclose') : $('sc-au-where')).focus(); } catch (e) {} }, 30); }
+    $('sc-au-where').addEventListener('click', function () { help(true); });
+    $('sc-au-hclose').addEventListener('click', function () { help(false); });
+    h.addEventListener('click', function (e) { if (e.target === h) help(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && h.classList.contains('on')) { help(false); e.preventDefault(); } }, true);
+    $('sc-au-new').addEventListener('click', function () { auNew(); });
+    $('sc-au-open').addEventListener('click', function () { try { if (AU.pair) window.SCNative.openExternal(AU.pair.qr_url); } catch (e) {} });
+    var inp = $('sc-au-in');
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') auGo(); });
+    inp.addEventListener('paste', function () { setTimeout(function () { inp.value = inp.value.trim(); }, 0); });
+    $('sc-au-go').addEventListener('click', auGo);
+    $('sc-au-paste').addEventListener('click', function () {
+      if (rdBusy) return;
+      var done = function (t) { inp.value = String(t || '').trim(); inp.focus(); };
+      try { navigator.clipboard.readText().then(done, function () { inp.focus(); rdMsg('Нажмите Ctrl+V — браузер не дал прочитать буфер', 'er'); }); }
+      catch (e) { inp.focus(); rdMsg('Нажмите Ctrl+V', 'er'); }
+    });
+    return el;
+  }
+  function auGo() {
+    var i = $('sc-au-in');
+    if (!i || rdBusy) return;
+    var v = i.value.replace(/[\u200B-\u200F\u2060\uFEFF]/g, '').trim();
+    i.value = v;
+    if (!v) { rdMsg('Вставьте мастер-ключ', 'er'); i.focus(); return; }
+    rdState(true); rdMsg('');
+    try { window.SCNative.redeem(v); } catch (e) { rdState(false); rdMsg('Обновите приложение', 'er'); }
+  }
+  function auOv(txt, showBtn) {
+    var q = $('sc-au-qr'); if (!q) return;
+    q.classList.toggle('ov', !!txt);
+    var t = $('sc-au-ovt'), b = $('sc-au-new');
+    if (t) t.textContent = txt || '';
+    if (b) b.style.display = showBtn ? '' : 'none';
+    if (showBtn && b) { try { b.focus(); } catch (e) {} }
+  }
+  function auStop() { if (AU.timer) { clearTimeout(AU.timer); AU.timer = 0; } }
+  function auPost(path, body) {
+    return fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' })
+      .then(function (r) { return r.json().catch(function () { return {}; }); });
+  }
+  function auNew() {
+    auStop(); AU.pair = null; AU.phase = 'loading'; AU.lastTry = Date.now();
+    $('sc-au-img').innerHTML = ''; $('sc-au-code').textContent = ''; $('sc-au-cap').style.display = 'none'; $('sc-au-open').style.display = 'none';
+    auOv('Готовим код…', false);
+    var did = '';
+    try { did = window.SCNative.deviceId() || ''; } catch (e) {}
+    if (!did) { AU.phase = 'error'; auOv('Обновите приложение, чтобы войти по QR', false); return; }
+    auPost('tv/pair/start', { did: did, device_name: 'Windows · ' + (window.SCNative.version ? 'Siberia Connect ' + window.SCNative.version() : 'ПК') }).then(function (d) {
+      if (!d || !d.ok || !d.pair_id) { AU.phase = 'error'; auOv((d && d.error) || 'Не удалось получить код. Проверьте интернет.', true); return; }
+      AU.pair = d; AU.ends = Date.now() + (d.expires_in || 600) * 1000; AU.phase = 'wait';
+      $('sc-au-img').innerHTML = qrSvg(d.qr_url);
+      $('sc-au-code').textContent = d.user_code || ''; $('sc-au-cap').style.display = ''; $('sc-au-open').style.display = '';
+      auOv('', false); auSchedule();
+    }).catch(function () { AU.phase = 'error'; auOv('Не удалось получить код. Проверьте интернет.', true); });
+  }
+  function auSchedule() {
+    auStop();
+    if (AU.phase !== 'wait' || !AU.pair) return;
+    AU.timer = setTimeout(auPoll, Math.max(2, Math.min(10, AU.pair.interval || 3)) * 1000);
+  }
+  function auPoll() {
+    AU.timer = 0;
+    if (AU.phase !== 'wait' || !AU.pair) return;
+    if (Date.now() >= AU.ends) { AU.phase = 'expired'; AU.pair = null; auOv('Время действия кода вышло', true); return; }
+    var p = AU.pair;
+    auPost('tv/pair/poll', { pair_id: p.pair_id, device_secret: p.device_secret }).then(function (d) {
+      if (AU.pair !== p || AU.phase !== 'wait') return;                      // за время запроса экран закрыли / код обновили
+      if (d && d.ok && d.state === 'approved' && d.token) {
+        AU.phase = 'done'; AU.pair = null; auStop(); auOv('Подтверждено! Входим…', false);
+        try { localStorage.setItem('sc_tok', String(d.token)); } catch (e) {}
+        setTimeout(function () { location.reload(); }, 900);
+        return;
+      }
+      if (d && d.ok && d.state && d.state !== 'pending') { AU.phase = 'expired'; AU.pair = null; auOv('Время действия кода вышло', true); return; }
+      auSchedule();
+    }).catch(function () { if (AU.pair === p) auSchedule(); });             // нет связи — повторим
+  }
+  /* раз в 0,5 с: показать/скрыть экран и включить/остановить опрос (окно свёрнуто или экран закрыт — поллинг стоит) */
+  function authTick() {
+    var need = false;
+    try { need = !window.SCNative.loggedIn(); } catch (e) {}
+    var el = $('sc-auth') || (need ? auBuild() : null);
+    if (!el) return;
+    var sh = document.getElementById('wsheet');
+    el.classList.toggle('on', need);
+    el.classList.toggle('hold', need && !!sh && sh.classList.contains('on'));
+    var live = need && !document.hidden && AU.phase !== 'done';
+    if (!live) { auStop(); if (AU.phase === 'wait') AU.phase = 'paused'; return; }
+    if (AU.phase === 'idle' || AU.phase === 'paused' || (AU.phase === 'error' && Date.now() - AU.lastTry > 15000)) {
+      if (AU.phase === 'paused' && AU.pair && Date.now() < AU.ends) { AU.phase = 'wait'; auSchedule(); } else auNew();
+    }
+  }
+  document.addEventListener('visibilitychange', function () { if (document.hidden) auStop(); else setTimeout(authTick, 0); });
 
   /* ───── 1.6.0: «снежинка» ─────
      1) Страница ставит html.paused (все анимации замирают), когда document.hidden, и снимает по visibilitychange. После сворачивания
@@ -527,7 +775,7 @@
       var rst = document.createElement('style');
       rst.id = 'scc-rd-css'; rst.textContent = RD_CSS;
       (document.head || document.documentElement).appendChild(rst);
-      setInterval(rdFab, 700); rdFab();
+      setInterval(authTick, 500); authTick();
       var fst = document.createElement('style');
       fst.id = 'scc-flake-css'; fst.textContent = FLAKE_CSS;
       (document.head || document.documentElement).appendChild(fst);

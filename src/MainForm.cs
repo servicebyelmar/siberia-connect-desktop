@@ -570,6 +570,7 @@ public sealed class MainForm : Form
         s.IsGeneralAutofillEnabled = false;
         s.IsPasswordAutosaveEnabled = false;
 
+        WolfAssets.Attach(cw);
         _bridgeId = await cw.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript());
         cw.WebMessageReceived += OnWebMessage;
         cw.NavigationStarting += OnNavigationStarting;

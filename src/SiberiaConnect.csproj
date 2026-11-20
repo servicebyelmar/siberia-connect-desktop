@@ -51,6 +51,8 @@
     <EmbeddedResource Include="Compact.js" LogicalName="Compact.js" />
     <EmbeddedResource Include="..\assets\app.ico" LogicalName="app.ico" />
     <EmbeddedResource Include="..\assets\app_off.ico" LogicalName="app_off.ico" />
+    <!-- анимация логотипа: ролик, кадры, вой (wolf_howl.mp3 подхватится, как только файл появится в assets\wolf) -->
+    <EmbeddedResource Include="..\assets\wolf\*" LogicalName="wolf/%(Filename)%(Extension)" />
     <!-- 1.4.0: заставка с ледоколом; пока файла нет, сборка идёт без неё -->
     <EmbeddedResource Include="..\assets\splash.png" LogicalName="splash.png" Condition="Exists('..\assets\splash.png')" />
   </ItemGroup>

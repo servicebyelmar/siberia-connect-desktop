@@ -54,6 +54,7 @@
     version: function () { return S.version || ''; },
     deviceId: function () { return S.deviceId || ''; },
     isRunning: function () { return !!S.running; },
+    assetBase: function () { return 'https://sc-assets.local/'; },   /* файлы анимации логотипа отдаёт приложение (WolfAssets.cs) */
     hasSub: function () { return !!S.hasSub; },
     subUrl: function () { return S.subUrl || ''; },
     setSub: function (u) { send('setSub', [String(u || '')]); },

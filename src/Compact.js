@@ -217,6 +217,13 @@
     "html.win.scc .sc-rd-in:focus{border-color:#D9E1E6!important;box-shadow:0 0 0 3px rgba(217,225,230,.1)!important}",
     "html.win.scc .sc-rd-msg.er{color:#D2A0A6!important}",
     "html.win.scc .sc-rd-msg.wt{color:#A9B8C1!important}",
+        "html.win.scc .scp-tile{background:#1A2229!important;border:1px solid rgba(183,198,208,.18)!important;color:#EEF2F5!important;box-shadow:none!important;border-radius:12px!important}",
+    "html.win.scc .scp-tile:hover{background:#202A32!important;border-color:rgba(217,225,230,.32)!important}",
+    "html.win.scc .scp-tile i{background:#13191F!important;color:#D9E1E6!important}",
+    "html.win.scc .scp-tile small{color:#A9B5BD!important}",
+    "html.win.scc .worb video,html.win.scc .worb img{filter:grayscale(.72) contrast(1.08)!important}",
+    "html.win.scc .sc-nav button.on{color:#D9E1E6!important}",
+    "html.win.scc .sc-nav button:hover{color:#EEF2F5!important}",
     ].join('\n');
 
   var ICON = {

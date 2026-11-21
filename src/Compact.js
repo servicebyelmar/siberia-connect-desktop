@@ -177,8 +177,31 @@
     "html.win.scc .scp-bar{background:#0B0D10!important}",
     "html.win.scc .scp-bar i{background:#91AA9D!important}",
     "html.win.scc input,html.win.scc select,html.win.scc textarea{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
-    "html.win.scc :focus-visible{outline:2px solid #D9E1E6!important;outline-offset:3px}"
-  ].join('\n');
+    "html.win.scc :focus-visible{outline:2px solid #D9E1E6!important;outline-offset:3px}",
+    "html.win.scc .sc-set{background:#0B0D10!important;color:#EEF2F5!important}",
+    "html.win.scc .sc-set .scft{color:#84919A!important}",
+    "html.win.scc .scp-top{background:#13191F!important;border:1px solid rgba(183,198,208,.17)!important;box-shadow:none!important}",
+    "html.win.scc .scp-ava{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
+    "html.win.scc .scp-pill{color:#91AA9D!important}",
+    "html.win.scc .scp-bar{background:#0B0D10!important}",
+    "html.win.scc .scp-bar i{background:#91AA9D!important}",
+    "html.win.scc .scp-renew{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc .sc-upd button{background:#D9E1E6!important;color:#10151A!important;box-shadow:none!important}",
+    "html.win.scc .sc-upd button.g{background:#1A2229!important;color:#D9E1E6!important}",
+    "html.win.scc #sc-auth{background:#0B0D10!important;color:#EEF2F5!important}",
+    "html.win.scc #sc-auth .sc-au-c,html.win.scc #sc-auth .box{background:#13191F!important;border:1px solid rgba(183,198,208,.18)!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#EEF2F5!important}",
+    "html.win.scc #sc-auth .sc-au-s,html.win.scc #sc-auth p{color:#A9B5BD!important}",
+    "html.win.scc #sc-auth .sc-au-code{color:#D9E1E6!important}",
+    "html.win.scc #sc-auth .sc-au-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
+    "html.win.scc #sc-auth .sc-au-in:focus{border-color:#D9E1E6!important;box-shadow:0 0 0 3px rgba(217,225,230,.1)!important}",
+    "html.win.scc #sc-auth .sc-au-b{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
+    "html.win.scc #sc-auth .sc-au-b.p{background:#D9E1E6!important;color:#10151A!important;border-color:#E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc #sc-auth #sc-au-help{background:rgba(4,7,10,.82)!important}",
+    "html.win.scc .sc-rd-fab{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.24)!important;box-shadow:none!important}",
+    "html.win.scc .sc-rd-msg.wt{color:#D9E1E6!important}",
+    "html.win.scc .sc-rd-p{color:#A9B5BD!important}",
+    "html.win.scc .sc-rd-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}"
+  ].join('\\n');
 
   var ICON = {
     vpn: '<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
@@ -509,7 +532,7 @@
     var n = M.length, q = 3, d = '';
     for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (M[y][x]) d += 'M' + (x + q) + ' ' + (y + q) + 'h1v1h-1z';
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + (n + 2 * q) + ' ' + (n + 2 * q) + '" shape-rendering="crispEdges" role="img" ' +
-      'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#050D1A"/></svg>';
+      'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#0B0D10"/></svg>';
   }
 
   var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:34px;bottom:0;z-index:50;overflow-y:auto;background:#060F2A;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#DFF1FF}' +

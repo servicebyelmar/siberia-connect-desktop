@@ -157,8 +157,7 @@
     'html.win.scc.nonav #s-home .lgn .lg{width:78px;height:78px;margin:0 auto 12px}',
     'html.win.scc.nonav #s-home #lgbox,html.win.scc.nonav #s-home #codebox{width:100%;min-width:0;max-width:100%}',
     'html.win.scc.nonav #s-home>.btn,html.win.scc.nonav #s-home #lgbox .btn{width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin-top:10px}',
-    'html.win.scc.nonav #s-home input,html.win.scc.nonav #s-home textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box}'
-,
+    'html.win.scc.nonav #s-home input,html.win.scc.nonav #s-home textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box}',
     "html.win.scc,html.win.scc body{background:#0B0D10!important;color:#EEF2F5}",
     "html.win.scc .sc-top{background:#0B0D10;border-bottom:1px solid rgba(183,198,208,.14)}",
     "html.win.scc .sc-brand{color:#D9E1E6}",

@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#173967"/><stop offset="1" stop-color="#07142F"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#BFF0FF"/><stop offset=".55" stop-color="#7FD3FF"/><stop offset="1" stop-color="#3DE0C2"/></linearGradient><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-<rect x="8" y="8" width="240" height="240" rx="58" fill="url(#bg)" stroke="#7FD3FF" stroke-opacity=".32" stroke-width="2"/>
-<path d="M28 182C80 138 143 221 228 142" fill="none" stroke="#3DE0C2" stroke-opacity=".12" stroke-width="18" stroke-linecap="round"/>
-<g transform="translate(128 128) scale(2.35)" fill="none" stroke="url(#g)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
-<path d="M0 -9V-42M0 -20L-8.4 -27.1M0 -20L8.4 -27.1M0 -31L-6.1 -36.1M0 -31L6.1 -36.1M7.8 -4.5L36.4 -21M17.3 -10L19.2 -20.8M17.3 -10L27.7 -6.2M26.8 -15.5L28.2 -23.4M26.8 -15.5L34.4 -12.8M7.8 4.5L36.4 21M17.3 10L27.7 6.2M17.3 10L19.2 20.8M26.8 15.5L34.4 12.8M26.8 15.5L28.2 23.4M0 9V42M0 20L8.4 27.1M0 20L-8.4 27.1M0 31L6.1 36.1M0 31L-6.1 36.1M-7.8 4.5L-36.4 21M-17.3 10L-19.2 20.8M-17.3 10L-27.7 6.2M-26.8 15.5L-28.2 23.4M-26.8 15.5L-34.4 12.8M-7.8 -4.5L-36.4 -21M-17.3 -10L-27.7 -6.2M-17.3 -10L-19.2 -20.8M-26.8 -15.5L-34.4 -12.8M-26.8 -15.5L-28.2 -23.4"/>
-<polygon points="0,-9 7.8,-4.5 7.8,4.5 0,9 -7.8,4.5 -7.8,-4.5"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+<title id="title">Siberia Connect — Wolf</title>
+<rect x="8" y="8" width="240" height="240" rx="56" fill="#0B0D10" stroke="#53636D" stroke-width="3"/>
+<path d="M48 48 91 74 128 62 165 74 208 48 196 112 214 157 181 194 128 222 75 194 42 157 60 112Z" fill="#13191F" stroke="#D9E1E6" stroke-width="5" stroke-linejoin="round"/>
+<path d="M60 95 94 111 116 100 128 116 140 100 162 111 196 95" fill="none" stroke="#A9B5BD" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M67 132 105 143 128 126 151 143 189 132M88 167 128 189 168 167M128 130 128 169" fill="none" stroke="#D9E1E6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M116 168 128 177 140 168" fill="#D9E1E6"/>
+<circle cx="96" cy="137" r="5" fill="#A9B5BD"/><circle cx="160" cy="137" r="5" fill="#A9B5BD"/>
+</svg>

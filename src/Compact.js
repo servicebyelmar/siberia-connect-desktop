@@ -68,6 +68,12 @@
     'html.win.scc .worbw{display:block;position:relative;align-self:center;margin-left:auto;margin-right:auto;contain:layout}',
     'html.win.scc .worb{position:absolute;inset:12%;width:auto;height:auto;margin:0;display:block}',
     'html.win.scc .worb>svg{position:absolute;inset:21%;width:58%;height:58%;transform-origin:50% 50%}',
+    /* full-bleed: волк от края до края без чёрных отступов по бокам */
+    'html.win.scc .wrap:has(#s-home.on){top:0!important;padding-top:0!important}',
+    'html.win.scc .wcenter:before{display:none!important}',
+    'html.win.scc .worbw{width:calc(100% + 28px)!important;max-width:none!important;height:315px!important;margin:0 -14px 4px -14px!important;border-radius:0!important}',
+    'html.win.scc .worb{position:relative!important;inset:0!important;width:100%!important;height:100%!important;border-radius:0!important;border:0!important;box-shadow:none!important;background:#060F2A!important;-webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%);mask-image:linear-gradient(to bottom,#000 76%,transparent 100%)}',
+    'html.win.scc .worb video,html.win.scc .worb img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:0!important}',
     'html.win.scc .wtitle{height:27px;line-height:27px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}',
     'html.win.scc .wact{height:40px;min-height:40px;margin:8px 0 0;align-items:center}',
     'html.win.scc .wact:empty{display:flex}',

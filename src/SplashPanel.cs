@@ -4,10 +4,10 @@ namespace SiberiaConnect;
 
 internal sealed class SplashPanel : Panel
 {
-    private static readonly Color Deep = Color.FromArgb(5, 13, 26);      // #050D1A
+    private static readonly Color Deep = Color.FromArgb(11, 13, 16);     // #0B0D10
     private static readonly Color Mid = Color.FromArgb(10, 28, 60);      // #0A1C3C
-    private static readonly Color Ice = Color.FromArgb(143, 168, 200);   // #8FA8C8
-    private static readonly Color Neon = Color.FromArgb(0, 210, 255);    // #00D2FF
+    private static readonly Color Ice = Color.FromArgb(169, 181, 189);  // #A9B5BD
+    private static readonly Color Neon = Color.FromArgb(217, 225, 230);  // #D9E1E6
 
     private readonly Bitmap _logo;
 

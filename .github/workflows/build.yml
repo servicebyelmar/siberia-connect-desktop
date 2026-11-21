@@ -40,8 +40,9 @@ jobs:
         run: ./tests/run-selftests.ps1 -Exe publish-test/SiberiaConnect.exe -Work "$env:RUNNER_TEMP/sc-tests"
 
   build:
+    # Build unsigned installer/portable artifacts on pull requests for device QA.
+    # Signed release remains explicitly gated by workflow_dispatch + publish=true.
     needs: test
-    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

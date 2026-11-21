@@ -4,12 +4,14 @@ namespace SiberiaConnect;
 
 internal sealed class SplashPanel : Panel
 {
-    private static readonly Color Deep = Color.FromArgb(11, 13, 16);     // #0B0D10
-    private static readonly Color Mid = Color.FromArgb(19, 25, 31);     // #13191F
-    private static readonly Color Ice = Color.FromArgb(169, 181, 189);  // #A9B5BD
-    private static readonly Color Neon = Color.FromArgb(217, 225, 230);  // #D9E1E6
+    private static readonly Color Deep = Color.FromArgb(6, 19, 32);     // #0B0D10
+    private static readonly Color Mid = Color.FromArgb(13, 40, 59);     // #13191F
+    private static readonly Color Ice = Color.FromArgb(174, 205, 221);  // #A9B5BD
+    private static readonly Color Neon = Color.FromArgb(125, 225, 251);  // #D9E1E6
 
     private readonly Bitmap _logo;
+    private readonly System.Windows.Forms.Timer _breath = new() { Interval = 85 };
+    private float _phase;
 
     public SplashPanel()
     {
@@ -18,10 +20,24 @@ internal sealed class SplashPanel : Panel
         DoubleBuffered = true;
         ResizeRedraw = true;
         _logo = CreateWolfBitmap();
+        _breath.Tick += (_, _) => { _phase += 0.075f; Invalidate(); };
+        _breath.Start();
     }
 
     private static Bitmap CreateWolfBitmap()
     {
+        // Native Windows splash uses the same photographic master as all platforms.
+        // JPEG is supported by GDI+ without additional codecs; generated vector is fallback.
+        try
+        {
+            using var src = AppInfo.Resource("wolf/wolf-idle.jpg");
+            if (src != null)
+            {
+                using var img = Image.FromStream(src);
+                return new Bitmap(img);
+            }
+        }
+        catch (Exception ex) { Log.Write("wolf splash fallback: " + ex.Message); }
         const int size = 256;
         var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(bitmap);
@@ -35,19 +51,19 @@ internal sealed class SplashPanel : Panel
             new PointF(214, 157), new PointF(181, 194), new PointF(128, 222),
             new PointF(75, 194), new PointF(42, 157), new PointF(60, 112)
         };
-        using var fill = new SolidBrush(Color.FromArgb(19, 25, 31));
-        using var outline = new Pen(Color.FromArgb(217, 225, 230), 5) { LineJoin = LineJoin.Round };
+        using var fill = new SolidBrush(Color.FromArgb(13, 40, 59));
+        using var outline = new Pen(Color.FromArgb(125, 225, 251), 5) { LineJoin = LineJoin.Round };
         g.FillPolygon(fill, head);
         g.DrawPolygon(outline, head);
 
-        using var brow = new Pen(Color.FromArgb(169, 181, 189), 6) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        using var brow = new Pen(Color.FromArgb(174, 205, 221), 6) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         g.DrawLines(brow, new[]
         {
             new PointF(60, 95), new PointF(94, 111), new PointF(116, 100),
             new PointF(128, 116), new PointF(140, 100), new PointF(162, 111), new PointF(196, 95)
         });
 
-        using var detail = new Pen(Color.FromArgb(217, 225, 230), 8) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        using var detail = new Pen(Color.FromArgb(125, 225, 251), 8) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         g.DrawLines(detail, new[]
         {
             new PointF(67, 132), new PointF(105, 143), new PointF(128, 126),
@@ -56,7 +72,7 @@ internal sealed class SplashPanel : Panel
         g.DrawLines(detail, new[] { new PointF(88, 167), new PointF(128, 189), new PointF(168, 167) });
         g.DrawLine(detail, 128, 130, 128, 169);
 
-        using var nose = new SolidBrush(Color.FromArgb(217, 225, 230));
+        using var nose = new SolidBrush(Color.FromArgb(125, 225, 251));
         g.FillPolygon(nose, new[] { new PointF(116, 168), new PointF(128, 177), new PointF(140, 168) });
         return bitmap;
     }
@@ -73,11 +89,29 @@ internal sealed class SplashPanel : Panel
 
         int side = Math.Min((int)(r.Width * 0.62), 240);
         int topY = r.Height / 2 - side / 2 - 36;
+        // Subtle ice-metal orbit around the wolf; no timers or heavy media resources.
+        var halo = new Rectangle((r.Width - side) / 2 - 12, topY - 12, side + 24, side + 24);
+        var lum = (float)((Math.Sin(_phase) + 1.0) / 2.0);
+        using (var pen = new Pen(Color.FromArgb(60 + (int)(44 * lum), 95, 213, 248), 2F))
+            g.DrawEllipse(pen, halo);
+        halo.Inflate(10, 10);
+        using (var pen = new Pen(Color.FromArgb(24 + (int)(18 * lum), 95, 213, 248), 1F))
+            g.DrawEllipse(pen, halo);
         if (_logo != null)
-            g.DrawImage(_logo, (r.Width - side) / 2, topY, side, side);
+        {
+            var x = (r.Width - side) / 2;
+            using var mask = new GraphicsPath();
+            mask.AddEllipse(x, topY, side, side);
+            var state = g.Save();
+            g.SetClip(mask);
+            g.DrawImage(_logo, x, topY, side, side);
+            g.Restore(state);
+        }
 
-        using var f = new Font("Segoe UI Semibold", 17F, FontStyle.Bold);
-        DrawCentered(g, "SIBERIA CONNECT", f, Color.White, topY + side + 18, r.Width);
+        using var f = new Font("Segoe UI Semibold", 22F, FontStyle.Bold);
+        DrawCentered(g, "SIBERIA", f, Color.White, topY + side + 12, r.Width);
+        using var wordmarkSub = new Font("Segoe UI", 10.5F, FontStyle.Bold);
+        DrawCentered(g, "C  O  N  N  E  C  T", wordmarkSub, Neon, topY + side + 50, r.Width);
 
         using var small = new Font("Segoe UI", 9.5F);
         DrawCentered(g, "Загрузка…", small, Ice, r.Height - 56, r.Width);
@@ -94,7 +128,7 @@ internal sealed class SplashPanel : Panel
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _logo?.Dispose();
+        if (disposing) { _breath.Stop(); _breath.Dispose(); _logo?.Dispose(); }
         base.Dispose(disposing);
     }
 }

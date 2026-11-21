@@ -13,7 +13,7 @@ internal static class WindowFx
     public const string Acrylic = "acrylic";
     public const string Off = "off";
 
-    public static readonly Color Brand = Color.FromArgb(11, 13, 16);
+    public static readonly Color Brand = Color.FromArgb(6, 19, 32);
 
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_CAPTION_COLOR = 35;
@@ -70,7 +70,7 @@ internal static class WindowFx
                     var zero = new Margins();
                     DwmExtendFrameIntoClientArea(hwnd, ref zero);
                 }
-                int caption = 0x00100D0B;                                             // #0B0D10, графит
+                int caption = 0x00201306;                                             // #061320, deep northern blue
                 DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref caption, 4);
             }
         }

@@ -830,6 +830,33 @@
     clearTimeout(incT); incT = setTimeout(incHide, 10 * 60 * 1000);
   }
 
+  // Aurora Signature: graphics only. All click handlers, WebView bridge and update events stay intact.
+  var PREMIUM_CSS = [
+    'html.win.scc,html.win.scc body{background:#061320!important;color:#f2f9fd!important;font-family:"Segoe UI Variable","Segoe UI",Inter,sans-serif!important}',
+    'html.win.scc .sc-top{background:linear-gradient(90deg,rgba(6,19,32,.97),rgba(11,38,56,.94))!important;border-bottom:1px solid rgba(122,213,243,.19)!important}',
+    'html.win.scc .sc-brand{color:#b5eefa!important;letter-spacing:.16em!important;font-weight:750!important}',
+    'html.win.scc .sc-x{background:#122c40!important;color:#dbf4fb!important;border:1px solid rgba(117,205,234,.28)!important}',
+    'html.win.scc .sc-x:hover{background:#28455a!important;color:#fff!important}',
+    'html.win.scc .sc-nav{background:rgba(7,23,37,.98)!important;border-top:1px solid rgba(116,210,241,.3)!important;box-shadow:0 -12px 32px rgba(0,0,0,.24)!important}',
+    'html.win.scc .sc-nav button{color:#a2becd!important;font-weight:650!important}',
+    'html.win.scc .sc-nav button.on{color:#8eeaff!important;background:linear-gradient(180deg,rgba(26,91,124,.3),rgba(10,35,55,.12))!important}',
+    'html.win.scc .wstats .wstat,html.win.scc .wsrv,html.win.scc .wright .wcard,html.win.scc .scp-top,html.win.scc .scp-tile{background:linear-gradient(145deg,#153247,#0b2031)!important;border:1px solid rgba(124,215,244,.3)!important;color:#edf8fd!important;box-shadow:inset 0 1px 0 rgba(233,251,255,.08)!important}',
+    'html.win.scc .wstats .wstat b,html.win.scc .wsrv b,html.win.scc .wtitle{color:#f4fbff!important}',
+    'html.win.scc .wstats .wstat small,html.win.scc .wsrv small,html.win.scc .wip small,html.win.scc .scp-until{color:#b3cada!important}',
+    'html.win.scc .worbw{background:radial-gradient(ellipse 65% 65% at 50% 35%,rgba(35,138,175,.2),transparent 75%),#061320!important}',
+    'html.win.scc .worbw:after{content:"";position:absolute;inset:8% 10%;border:1px solid rgba(128,220,247,.2);border-radius:50%;pointer-events:none;opacity:.45}',
+    'html.win.scc .worb .wzring,html.win.scc .worb .wzring2,html.win.scc .worb .wwave{filter:drop-shadow(0 0 5px rgba(100,222,255,.35))}',
+    'html.win.scc .wact .wbtn,html.win.scc .scp-renew,html.win.scc .sc-upd button:not(.g){background:linear-gradient(112deg,#c5f5ff,#69def8 53%,#31b7e7)!important;color:#061623!important;border:1px solid #b5effd!important;box-shadow:0 5px 19px rgba(36,165,218,.22),inset 0 1px 0 rgba(255,255,255,.7)!important;font-weight:750!important}',
+    'html.win.scc .sc-rd-in{background:#091c2b!important;color:#eff9ff!important;border-color:rgba(137,213,244,.32)!important}',
+    'html.win.scc .sc-rd-in:focus{border-color:#80e3fb!important;box-shadow:0 0 0 3px rgba(92,207,243,.14)!important}',
+    'html.win.scc .sc-rd-fab{background:#173b50!important;color:#d7f4fd!important;border-color:rgba(124,222,249,.35)!important}',
+    'html.win.scc .scp-pill{color:#65e7bd!important}',
+    'html.win.scc .scp-bar i{background:linear-gradient(90deg,#278fb6,#8be9fc)!important}',
+    'html.win.scc .sc-upd,html.win.scc #sc-inc{background:#0d283b!important;border-color:rgba(112,207,239,.42)!important;color:#ecf8fd!important}',
+    'html.win.scc :focus-visible{outline:2px solid #8beaff!important;outline-offset:3px}',
+    '@media(prefers-reduced-motion:reduce){html.win.scc .worbw:after{animation:none!important}}'
+  ].join('');
+
   function boot() {
     try {
       var ist = document.createElement('style');
@@ -838,6 +865,9 @@
       var st = document.createElement('style');
       st.id = 'scc-css'; st.textContent = CSS;
       (document.head || document.documentElement).appendChild(st);
+      var premiumStyle = document.createElement('style');
+      premiumStyle.id = 'scc-aurora-premium'; premiumStyle.textContent = PREMIUM_CSS;
+      (document.head || document.documentElement).appendChild(premiumStyle);
       document.documentElement.classList.add('scc');
       buildChrome();
       if (typeof go === 'function') {

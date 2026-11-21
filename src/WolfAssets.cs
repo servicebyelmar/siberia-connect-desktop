@@ -11,7 +11,7 @@ namespace SiberiaConnect;
 internal static class WolfAssets
 {
     private const string Host = "sc-assets.local";
-    private static readonly Regex Name = new(@"^wolf_[a-z]+\.(mp4|mp3|jpg)$", RegexOptions.Compiled);
+    private static readonly Regex Name = new(@"^wolf[-_][a-z]+\.(mp4|mp3|jpg|webp|ogg)$", RegexOptions.Compiled);
     private static readonly Regex RangeRx = new(@"^bytes=(\d*)-(\d*)$", RegexOptions.Compiled);
 
     public static void Attach(CoreWebView2 cw)
@@ -33,7 +33,7 @@ internal static class WolfAssets
         if (src == null) return env.CreateWebResourceResponse(null, 404, "Not Found", "");   // файла нет (например, wolf_howl.mp3 ещё не добавлен)
 
         long total = src.Length;
-        var mime = name.EndsWith(".mp4") ? "video/mp4" : name.EndsWith(".mp3") ? "audio/mpeg" : "image/jpeg";
+        var mime = name.EndsWith(".mp4") ? "video/mp4" : name.EndsWith(".mp3") ? "audio/mpeg" : name.EndsWith(".webp") ? "image/webp" : name.EndsWith(".ogg") ? "audio/ogg" : "image/jpeg";
         var common = $"Content-Type: {mime}\nAccept-Ranges: bytes\nAccess-Control-Allow-Origin: *";
 
         var m = req.Headers.Contains("Range") ? RangeRx.Match(req.Headers.GetHeader("Range").Trim()) : null;

@@ -51,7 +51,7 @@ public sealed class MainForm : Form
         MinimumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
-        // 1.4.0: арктическая заставка (assets/splash.png — ледокол; пока файла нет, рисуется заготовка с логотипом)
+        // Wolf Standard: фирменный знак сибирского волка рисуется векторно на заставке
         _splash = new SplashPanel();
         Controls.Add(_splash);
         _splash.BringToFront();

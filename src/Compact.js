@@ -158,7 +158,27 @@
     'html.win.scc.nonav #s-home #lgbox,html.win.scc.nonav #s-home #codebox{width:100%;min-width:0;max-width:100%}',
     'html.win.scc.nonav #s-home>.btn,html.win.scc.nonav #s-home #lgbox .btn{width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin-top:10px}',
     'html.win.scc.nonav #s-home input,html.win.scc.nonav #s-home textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box}'
-
+,
+    "html.win.scc,html.win.scc body{background:#0B0D10!important;color:#EEF2F5}",
+    "html.win.scc .sc-top{background:#0B0D10;border-bottom:1px solid rgba(183,198,208,.14)}",
+    "html.win.scc .sc-brand{color:#D9E1E6}",
+    "html.win.scc .sc-x{background:#1A2229;color:#D9E1E6}",
+    "html.win.scc .sc-nav{background:rgba(11,13,16,.98);border-top:1px solid rgba(183,198,208,.16)}",
+    "html.win.scc .sc-nav button{color:#A9B5BD}",
+    "html.win.scc .sc-nav button.on{color:#D9E1E6}",
+    "html.win.scc .worb{background:#0B0D10!important}",
+    "html.win.scc .wstat,html.win.scc .wsrv,html.win.scc .wcard,html.win.scc .scp,html.win.scc .sc-upd{background:#13191F!important;border:1px solid rgba(183,198,208,.17)!important;box-shadow:none!important}",
+    "html.win.scc .wtitle,html.win.scc .wstat b,html.win.scc .wsrv b{color:#EEF2F5}",
+    "html.win.scc .wstat small,html.win.scc .wsrv small,html.win.scc .wip small{color:#A9B5BD}",
+    "html.win.scc .wbtn,html.win.scc button.wbtn{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc .wbtn.secondary{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.2)!important}",
+    "html.win.scc .worb:focus-visible{outline:2px solid #D9E1E6!important}",
+    "html.win.scc .sc-upd{background:#13191F!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.22)!important}",
+    "html.win.scc .scp-pill{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
+    "html.win.scc .scp-bar{background:#0B0D10!important}",
+    "html.win.scc .scp-bar i{background:#91AA9D!important}",
+    "html.win.scc input,html.win.scc select,html.win.scc textarea{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
+    "html.win.scc :focus-visible{outline:2px solid #D9E1E6!important;outline-offset:3px}"
   ].join('\n');
 
   var ICON = {

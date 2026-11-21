@@ -200,7 +200,11 @@
     "html.win.scc .sc-rd-fab{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.24)!important;box-shadow:none!important}",
     "html.win.scc .sc-rd-msg.wt{color:#D9E1E6!important}",
     "html.win.scc .sc-rd-p{color:#A9B5BD!important}",
-    "html.win.scc .sc-rd-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}"
+    "html.win.scc .sc-rd-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
+    "html.win.scc #sc-au-help{background:rgba(4,7,10,.82)!important}",
+    "html.win.scc #sc-au-help .box{background:#13191F!important;color:#EEF2F5!important;border:1px solid rgba(183,198,208,.2)!important;box-shadow:none!important}",
+    "html.win.scc #sc-auth .sc-au-qr{background:#FFFFFF!important;border:1px solid rgba(183,198,208,.24)!important}",
+    "html.win.scc #sc-auth .sc-au-ov{background:rgba(255,255,255,.96)!important;color:#10151A!important}"
   ].join('\n');
 
   var ICON = {

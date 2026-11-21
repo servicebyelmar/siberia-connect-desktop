@@ -55,7 +55,7 @@
     'html.win.scc .worbw{width:min(250px,calc(100vh - 400px));height:min(250px,calc(100vh - 400px));aspect-ratio:auto;flex:none;margin:14px auto}',
     'html.win.scc .wtitle{font-size:22px;margin:0;line-height:1.2}',
     'html.win.scc .wact{margin:8px 0 0;min-height:0}',
-    /* v-fix: «снежинка» не двигается при смене состояния (Connected/Connecting/Off).
+    /* v-fix: знак волка не двигается при смене состояния (Connected/Connecting/Off).
        Кнопка жёстко центрируется внутри контейнера фиксированного размера (inset, а не flow/transform),
        место под заголовок и кнопки действий зарезервировано — высота группы не меняется,
        поэтому flex-распорки не сдвигают кнопку; полоса прокрутки не может «уехать» вбок. */

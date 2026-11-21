@@ -201,7 +201,7 @@
     "html.win.scc .sc-rd-msg.wt{color:#D9E1E6!important}",
     "html.win.scc .sc-rd-p{color:#A9B5BD!important}",
     "html.win.scc .sc-rd-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}"
-  ].join('\\n');
+  ].join('\n');
 
   var ICON = {
     vpn: '<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',

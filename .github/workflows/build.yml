@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Выложить релиз (сервер сам заберёт и опубликует). Сборки из main выкладываются всегда"
+        description: "Опубликовать подписанный релиз вручную; обычный push в main только собирает и тестирует"
         type: boolean
         default: false
 
@@ -106,7 +106,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Sign update (ключ только в секретах GitHub)
-        if: github.ref == 'refs/heads/main' || inputs.publish == true
+        if: github.event_name == 'workflow_dispatch' && inputs.publish == true
         shell: pwsh
         env:
           UPDATE_KEY: ${{ secrets.UPDATE_KEY }}
@@ -135,7 +135,7 @@ jobs:
         run: Compress-Archive -Path publish/* -DestinationPath "out/SiberiaConnect-Portable-$env:APP_VERSION.zip"
 
       - name: Release (установщик + update.json — сервер сам заберёт, проверит подпись и опубликует)
-        if: github.ref == 'refs/heads/main' || inputs.publish == true
+        if: github.event_name == 'workflow_dispatch' && inputs.publish == true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

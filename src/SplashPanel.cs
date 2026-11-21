@@ -10,6 +10,8 @@ internal sealed class SplashPanel : Panel
     private static readonly Color Neon = Color.FromArgb(125, 225, 251);  // #D9E1E6
 
     private readonly Bitmap _logo;
+    private readonly System.Windows.Forms.Timer _breath = new() { Interval = 85 };
+    private float _phase;
 
     public SplashPanel()
     {
@@ -18,10 +20,24 @@ internal sealed class SplashPanel : Panel
         DoubleBuffered = true;
         ResizeRedraw = true;
         _logo = CreateWolfBitmap();
+        _breath.Tick += (_, _) => { _phase += 0.075f; Invalidate(); };
+        _breath.Start();
     }
 
     private static Bitmap CreateWolfBitmap()
     {
+        // Native Windows splash uses the same photographic master as all platforms.
+        // JPEG is supported by GDI+ without additional codecs; generated vector is fallback.
+        try
+        {
+            using var src = AppInfo.Resource("wolf/wolf-idle.jpg");
+            if (src != null)
+            {
+                using var img = Image.FromStream(src);
+                return new Bitmap(img);
+            }
+        }
+        catch (Exception ex) { Log.Write("wolf splash fallback: " + ex.Message); }
         const int size = 256;
         var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(bitmap);
@@ -75,13 +91,22 @@ internal sealed class SplashPanel : Panel
         int topY = r.Height / 2 - side / 2 - 36;
         // Subtle ice-metal orbit around the wolf; no timers or heavy media resources.
         var halo = new Rectangle((r.Width - side) / 2 - 12, topY - 12, side + 24, side + 24);
-        using (var pen = new Pen(Color.FromArgb(83, 95, 213, 248), 2F))
+        var lum = (float)((Math.Sin(_phase) + 1.0) / 2.0);
+        using (var pen = new Pen(Color.FromArgb(60 + (int)(44 * lum), 95, 213, 248), 2F))
             g.DrawEllipse(pen, halo);
         halo.Inflate(10, 10);
-        using (var pen = new Pen(Color.FromArgb(31, 95, 213, 248), 1F))
+        using (var pen = new Pen(Color.FromArgb(24 + (int)(18 * lum), 95, 213, 248), 1F))
             g.DrawEllipse(pen, halo);
         if (_logo != null)
-            g.DrawImage(_logo, (r.Width - side) / 2, topY, side, side);
+        {
+            var x = (r.Width - side) / 2;
+            using var mask = new GraphicsPath();
+            mask.AddEllipse(x, topY, side, side);
+            var state = g.Save();
+            g.SetClip(mask);
+            g.DrawImage(_logo, x, topY, side, side);
+            g.Restore(state);
+        }
 
         using var f = new Font("Segoe UI Semibold", 22F, FontStyle.Bold);
         DrawCentered(g, "SIBERIA", f, Color.White, topY + side + 12, r.Width);
@@ -103,7 +128,7 @@ internal sealed class SplashPanel : Panel
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _logo?.Dispose();
+        if (disposing) { _breath.Stop(); _breath.Dispose(); _logo?.Dispose(); }
         base.Dispose(disposing);
     }
 }

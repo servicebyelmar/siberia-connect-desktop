@@ -55,7 +55,7 @@
     'html.win.scc .worbw{width:min(250px,calc(100vh - 400px));height:min(250px,calc(100vh - 400px));aspect-ratio:auto;flex:none;margin:14px auto}',
     'html.win.scc .wtitle{font-size:22px;margin:0;line-height:1.2}',
     'html.win.scc .wact{margin:8px 0 0;min-height:0}',
-    /* v-fix: «снежинка» не двигается при смене состояния (Connected/Connecting/Off).
+    /* v-fix: знак волка не двигается при смене состояния (Connected/Connecting/Off).
        Кнопка жёстко центрируется внутри контейнера фиксированного размера (inset, а не flow/transform),
        место под заголовок и кнопки действий зарезервировано — высота группы не меняется,
        поэтому flex-распорки не сдвигают кнопку; полоса прокрутки не может «уехать» вбок. */
@@ -157,9 +157,74 @@
     'html.win.scc.nonav #s-home .lgn .lg{width:78px;height:78px;margin:0 auto 12px}',
     'html.win.scc.nonav #s-home #lgbox,html.win.scc.nonav #s-home #codebox{width:100%;min-width:0;max-width:100%}',
     'html.win.scc.nonav #s-home>.btn,html.win.scc.nonav #s-home #lgbox .btn{width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin-top:10px}',
-    'html.win.scc.nonav #s-home input,html.win.scc.nonav #s-home textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box}'
-
-  ].join('\n');
+    'html.win.scc.nonav #s-home input,html.win.scc.nonav #s-home textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box}',
+    "html.win.scc,html.win.scc body{background:#0B0D10!important;color:#EEF2F5}",
+    "html.win.scc .sc-top{background:#0B0D10;border-bottom:1px solid rgba(183,198,208,.14)}",
+    "html.win.scc .sc-brand{color:#D9E1E6}",
+    "html.win.scc .sc-x{background:#1A2229;color:#D9E1E6}",
+    "html.win.scc .sc-nav{background:rgba(11,13,16,.98);border-top:1px solid rgba(183,198,208,.16)}",
+    "html.win.scc .sc-nav button{color:#A9B5BD}",
+    "html.win.scc .sc-nav button.on{color:#D9E1E6}",
+    "html.win.scc .worb{background:#0B0D10!important}",
+    "html.win.scc .wstat,html.win.scc .wsrv,html.win.scc .wcard,html.win.scc .scp,html.win.scc .sc-upd{background:#13191F!important;border:1px solid rgba(183,198,208,.17)!important;box-shadow:none!important}",
+    "html.win.scc .wtitle,html.win.scc .wstat b,html.win.scc .wsrv b{color:#EEF2F5}",
+    "html.win.scc .wstat small,html.win.scc .wsrv small,html.win.scc .wip small{color:#A9B5BD}",
+    "html.win.scc .wbtn,html.win.scc button.wbtn{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc .wbtn.secondary{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.2)!important}",
+    "html.win.scc .worb:focus-visible{outline:2px solid #D9E1E6!important}",
+    "html.win.scc .sc-upd{background:#13191F!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.22)!important}",
+    "html.win.scc .scp-pill{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
+    "html.win.scc .scp-bar{background:#0B0D10!important}",
+    "html.win.scc .scp-bar i{background:#91AA9D!important}",
+    "html.win.scc input,html.win.scc select,html.win.scc textarea{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
+    "html.win.scc :focus-visible{outline:2px solid #D9E1E6!important;outline-offset:3px}",
+    "html.win.scc .sc-set{background:#0B0D10!important;color:#EEF2F5!important}",
+    "html.win.scc .sc-set .scft{color:#84919A!important}",
+    "html.win.scc .scp-top{background:#13191F!important;border:1px solid rgba(183,198,208,.17)!important;box-shadow:none!important}",
+    "html.win.scc .scp-ava{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
+    "html.win.scc .scp-pill{color:#91AA9D!important}",
+    "html.win.scc .scp-bar{background:#0B0D10!important}",
+    "html.win.scc .scp-bar i{background:#91AA9D!important}",
+    "html.win.scc .scp-renew{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc .sc-upd button{background:#D9E1E6!important;color:#10151A!important;box-shadow:none!important}",
+    "html.win.scc .sc-upd button.g{background:#1A2229!important;color:#D9E1E6!important}",
+    "html.win.scc #sc-auth{background:#0B0D10!important;color:#EEF2F5!important}",
+    "html.win.scc #sc-auth .sc-au-c,html.win.scc #sc-auth .box{background:#13191F!important;border:1px solid rgba(183,198,208,.18)!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#EEF2F5!important}",
+    "html.win.scc #sc-auth .sc-au-s,html.win.scc #sc-auth p{color:#A9B5BD!important}",
+    "html.win.scc #sc-auth .sc-au-code{color:#D9E1E6!important}",
+    "html.win.scc #sc-auth .sc-au-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
+    "html.win.scc #sc-auth .sc-au-in:focus{border-color:#D9E1E6!important;box-shadow:0 0 0 3px rgba(217,225,230,.1)!important}",
+    "html.win.scc #sc-auth .sc-au-b{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
+    "html.win.scc #sc-auth .sc-au-b.p{background:#D9E1E6!important;color:#10151A!important;border-color:#E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc #sc-auth #sc-au-help{background:rgba(4,7,10,.82)!important}",
+    "html.win.scc .sc-rd-fab{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.24)!important;box-shadow:none!important}",
+    "html.win.scc .sc-rd-msg.wt{color:#D9E1E6!important}",
+    "html.win.scc .sc-rd-p{color:#A9B5BD!important}",
+    "html.win.scc.nonav #s-home .lgn,html.win.scc.nonav #s-home #lgbox{background:#13191F!important;border:1px solid rgba(183,198,208,.18)!important;box-shadow:none!important;backdrop-filter:none!important}",
+    "html.win.scc.nonav #s-home .lgn .lg{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important;box-shadow:none!important}",
+    "html.win.scc.nonav #s-home>.btn,html.win.scc.nonav #s-home #lgbox .btn{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc.nonav #s-home .btn.ghost,html.win.scc.nonav #s-home #lgbox .btn.ghost{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.2)!important}",
+    "html.win.scc .sc-rd-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
+    "html.win.scc #sc-au-help{background:rgba(4,7,10,.82)!important}",
+    "html.win.scc #sc-au-help .box{background:#13191F!important;color:#EEF2F5!important;border:1px solid rgba(183,198,208,.2)!important;box-shadow:none!important}",
+    "html.win.scc #sc-auth .sc-au-qr{background:#FFFFFF!important;border:1px solid rgba(183,198,208,.24)!important}",
+    "html.win.scc #sc-auth .sc-au-ov{background:rgba(255,255,255,.96)!important;color:#10151A!important}"
+      "html.win.scc .sc-x:hover{background:rgba(217,225,230,.14)!important;color:#EEF2F5!important}",
+    "html.win.scc .scp-pill.bad{color:#D2A0A6!important}",
+    "html.win.scc #sc-inc{background:#13191F!important;border-color:rgba(183,198,208,.2)!important;color:#EEF2F5!important}",
+    "html.win.scc #sc-inc button{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
+    "html.win.scc #sc-inc small{color:#A9B5BD!important}",
+    "html.win.scc .sc-rd-in:focus{border-color:#D9E1E6!important;box-shadow:0 0 0 3px rgba(217,225,230,.1)!important}",
+    "html.win.scc .sc-rd-msg.er{color:#D2A0A6!important}",
+    "html.win.scc .sc-rd-msg.wt{color:#A9B8C1!important}",
+        "html.win.scc .scp-tile{background:#1A2229!important;border:1px solid rgba(183,198,208,.18)!important;color:#EEF2F5!important;box-shadow:none!important;border-radius:12px!important}",
+    "html.win.scc .scp-tile:hover{background:#202A32!important;border-color:rgba(217,225,230,.32)!important}",
+    "html.win.scc .scp-tile i{background:#13191F!important;color:#D9E1E6!important}",
+    "html.win.scc .scp-tile small{color:#A9B5BD!important}",
+    "html.win.scc .worb video,html.win.scc .worb img{filter:grayscale(.72) contrast(1.08)!important}",
+    "html.win.scc .sc-nav button.on{color:#D9E1E6!important}",
+    "html.win.scc .sc-nav button:hover{color:#EEF2F5!important}",
+    ].join('\n');
 
   var ICON = {
     vpn: '<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
@@ -490,29 +555,29 @@
     var n = M.length, q = 3, d = '';
     for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (M[y][x]) d += 'M' + (x + q) + ' ' + (y + q) + 'h1v1h-1z';
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + (n + 2 * q) + ' ' + (n + 2 * q) + '" shape-rendering="crispEdges" role="img" ' +
-      'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#050D1A"/></svg>';
+      'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#0B0D10"/></svg>';
   }
 
-  var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:34px;bottom:0;z-index:50;overflow-y:auto;background:#060F2A;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#DFF1FF}' +
+  var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:34px;bottom:0;z-index:50;overflow-y:auto;background:#0B0D10;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#EEF2F5}' +
     '#sc-auth.on{display:block}#sc-auth.hold{display:none}' +
     '#sc-auth h1{font-size:19px;margin:6px 0 12px;text-align:center}' +
     '.sc-au-g{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;max-width:900px;margin:0 auto}' +
     '@media (min-width:720px){.sc-au-g{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}' +
-    '.sc-au-c{background:#102444;border:1px solid #1C5A80;border-radius:18px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}' +
-    '.sc-au-c h2{font-size:15px;margin:0}.sc-au-s{font-size:12.5px;line-height:1.5;color:#9CC3E8;margin:0}' +
+    '.sc-au-c{background:#13191F;border:1px solid rgba(183,198,208,.18);border-radius:16px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}' +
+    '.sc-au-c h2{font-size:15px;margin:0}.sc-au-s{font-size:12.5px;line-height:1.5;color:#A9B5BD;margin:0}' +
     '.sc-au-qr{position:relative;width:184px;height:184px;border-radius:14px;background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
     '.sc-au-qr svg{width:100%;height:100%;display:block}#sc-au-img{width:100%;height:100%}' +
-    '.sc-au-ov{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(255,255,255,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#1B2B44;font-size:13px;padding:8px}' +
+    '.sc-au-ov{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(255,255,255,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#10151A;font-size:13px;padding:8px}' +
     '.sc-au-qr.ov .sc-au-ov{display:flex}.sc-au-qr.ov svg{visibility:hidden}' +
-    '.sc-au-code{font:700 28px/1 Consolas,monospace;letter-spacing:.14em;color:#00D2FF}' +
-    '.sc-au-in{width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;border:1px solid rgba(140,200,255,.3);background:rgba(0,0,0,.25);color:#fff;font-size:14px;padding:0 12px}' +
-    '.sc-au-in:focus{outline:none;border-color:#7fd3ff;box-shadow:0 0 0 3px rgba(127,211,255,.2)}' +
+    '.sc-au-code{font:700 28px/1 Consolas,monospace;letter-spacing:.14em;color:#D9E1E6}' +
+    '.sc-au-in{width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;border:1px solid rgba(183,198,208,.24);background:#0E1318;color:#EEF2F5;font-size:14px;padding:0 12px}' +
+    '.sc-au-in:focus{outline:none;border-color:#D9E1E6;box-shadow:0 0 0 3px rgba(217,225,230,.1)}' +
     '.sc-au-row{display:flex;gap:8px;width:100%}.sc-au-row>*{flex:1}.sc-au-row>.sc-au-b2{flex:2}' +
-    '.sc-au-b{min-height:44px;border-radius:12px;border:1px solid rgba(127,211,255,.4);background:rgba(10,30,70,.9);color:#cfeaff;font:inherit;font-size:14px;cursor:pointer;padding:0 12px}' +
-    '.sc-au-b.p{background:linear-gradient(90deg,#00D2FF,#0080FF);color:#03121F;border:0;font-weight:700}' +
-    '.sc-au-b:disabled{opacity:.55;cursor:default}.sc-au-b:focus-visible,.sc-au-in:focus-visible{outline:3px solid #fff;outline-offset:2px}' +
-    '#sc-au-help{position:fixed;left:0;right:0;top:0;bottom:0;z-index:60;background:rgba(2,8,20,.78);display:none;align-items:center;justify-content:center;padding:18px}' +
-    '#sc-au-help.on{display:flex}#sc-au-help .box{background:#102444;border:1px solid #1C5A80;border-radius:18px;padding:18px;max-width:420px;text-align:left;font-size:13.5px;line-height:1.6}' +
+    '.sc-au-b{min-height:44px;border-radius:12px;border:1px solid rgba(183,198,208,.2);background:#1A2229;color:#D9E1E6;font:inherit;font-size:14px;cursor:pointer;padding:0 12px}' +
+    '.sc-au-b.p{background:#D9E1E6;color:#10151A;border:1px solid #E7ECEF;font-weight:700}' +
+    '.sc-au-b:disabled{opacity:.55;cursor:default}.sc-au-b:focus-visible,.sc-au-in:focus-visible{outline:2px solid #D9E1E6;outline-offset:3px}' +
+    '#sc-au-help{position:fixed;left:0;right:0;top:0;bottom:0;z-index:60;background:rgba(4,7,10,.82);display:none;align-items:center;justify-content:center;padding:18px}' +
+    '#sc-au-help.on{display:flex}#sc-au-help .box{background:#13191F;border:1px solid rgba(183,198,208,.2);border-radius:16px;padding:18px;max-width:420px;text-align:left;font-size:13.5px;line-height:1.6}' +
     '#sc-au-help .t{display:block;font-size:16px;font-weight:700;margin-bottom:8px}#sc-au-help p{margin:0 0 8px}';
 
   function auBuild() {
@@ -610,14 +675,14 @@
   }
   document.addEventListener('visibilitychange', function () { if (document.hidden) auStop(); else setTimeout(authTick, 0); });
 
-  /* ───── 1.6.0: «снежинка» ─────
+  /* ───── 1.6.0: анимация кнопки-волка ─────
      1) Страница ставит html.paused (все анимации замирают), когда document.hidden, и снимает по visibilitychange. После сворачивания
         в трей / сна / смены окна WebView2 может не прислать обратное событие — кнопка так и остаётся «замороженной».
         Поэтому видимое окно само снимает паузу и перезапускает анимации кнопки (раз в 300 мс — вместе с sync, и по событиям).
      2) Кольца и волна лежат над/рядом с кнопкой: им нельзя ловить клики (иначе кольцо с анимацией перехватывает нажатие). */
   var FLAKE_CSS = 'html.win.scc .wzring,html.win.scc .wzring2,html.win.scc .wtick,html.win.scc .wwave{pointer-events:none}' +
     'html.win.scc .worb{z-index:1;touch-action:manipulation;-webkit-tap-highlight-color:transparent}' +
-    'html.win.scc .worb:focus{outline:none}html.win.scc .worb:focus-visible{outline:2px solid #7FD3FF;outline-offset:6px}';
+    'html.win.scc .worb:focus{outline:none}html.win.scc .worb:focus-visible{outline:2px solid #D9E1E6;outline-offset:6px}';
   function kickFlake() {
     var o = $('worb');
     if (!o) return;
@@ -635,13 +700,13 @@
     if (!document.hidden && d.classList.contains('paused')) { d.classList.remove('paused'); kickFlake(); }
   }
 
-  var RD_CSS = '.sc-rd-in{width:100%;box-sizing:border-box;min-height:48px;border-radius:14px;border:1px solid rgba(140,200,255,.3);' +
-    'background:rgba(0,0,0,.25);color:#fff;font-size:15px;padding:0 14px;margin:6px 0 4px}.sc-rd-in:focus{outline:none;border-color:#7fd3ff;' +
-    'box-shadow:0 0 0 3px rgba(127,211,255,.2)}.sc-rd-p{text-align:left;font-size:13px;line-height:1.55}.sc-rd-p code{font-size:12px}' +
-    '.sc-rd-msg{min-height:20px;font-size:13px;margin:4px 0 8px}.sc-rd-msg.er{color:#ff8a8a}.sc-rd-msg.wt{color:#7fd3ff}' +
-    '.sc-rd-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:60;border:1px solid rgba(127,211,255,.35);' +
-    'background:rgba(10,30,70,.92);color:#cfeaff;border-radius:22px;padding:10px 18px;font-size:14px;cursor:pointer;display:none}' +
-    '.sc-rd-fab.on{display:block}.sc-rd-fab:focus-visible{outline:2px solid #7fd3ff;outline-offset:2px}';
+  var RD_CSS = '.sc-rd-in{width:100%;box-sizing:border-box;min-height:48px;border-radius:12px;border:1px solid rgba(183,198,208,.24);' +
+    'background:#0E1318;color:#EEF2F5;font-size:15px;padding:0 14px;margin:6px 0 4px}.sc-rd-in:focus{outline:none;border-color:#D9E1E6;' +
+    'box-shadow:0 0 0 3px rgba(217,225,230,.1)}.sc-rd-p{text-align:left;font-size:13px;line-height:1.55}.sc-rd-p code{font-size:12px}' +
+    '.sc-rd-msg{min-height:20px;font-size:13px;margin:4px 0 8px}.sc-rd-msg.er{color:#D2A0A6}.sc-rd-msg.wt{color:#A9B8C1}' +
+    '.sc-rd-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:60;border:1px solid rgba(183,198,208,.24);' +
+    'background:#1A2229;color:#D9E1E6;border-radius:12px;padding:10px 18px;font-size:14px;cursor:pointer;display:none}' +
+    '.sc-rd-fab.on{display:block}.sc-rd-fab:focus-visible{outline:2px solid #D9E1E6;outline-offset:3px}';
   function rdFab() {
     var f = $('sc-rd-fab');
     if (!f) {
@@ -656,7 +721,7 @@
   }
 
   /* ───── правки текстов и реферальная карточка ───── */
-  var TITLE = { 'Защищено': 'Подключено', 'Нажми на снежинку': 'Отключено' };
+  var TITLE = { 'Защищено': 'Подключено', 'Нажми на волка': 'Отключено' };
 
   function tidy() {
     var t = $('wtitle');
@@ -704,7 +769,7 @@
     var left = '';
     try { left = 'осталось ' + d.days_left + ' ' + dword(d.days_left); } catch (e) {}
     prof.innerHTML = '<div class="scp"><div class="scp-top">' +
-      '<div class="scp-me"><i class="scp-ava">' + H((d.name || '❄').charAt(0).toUpperCase()) + '</i><div><b>' + H(d.name || 'Мой профиль') + '</b>' +
+      '<div class="scp-me"><i class="scp-ava">' + H((d.name || '🐺').charAt(0).toUpperCase()) + '</i><div><b>' + H(d.name || 'Мой профиль') + '</b>' +
       '<span class="scp-pill' + (act ? '' : ' bad') + '">' + pill + '</span></div></div>' +
       (act ? '<div class="scp-bar"><i style="width:' + pct + '%"></i></div><div class="scp-until"><span>до ' + H(until) + '</span><span>' + left + '</span></div>' : '') +
       (d.status === 'blocked' ? '' : '<button class="scp-renew" type="button" onclick="scRenew()">' + (act ? 'Продлить подписку' : 'Выбрать тариф') + '</button>') +
@@ -743,9 +808,9 @@
      Плашка появляется ТОЛЬКО когда сервер принял отчёт о реальном сбое (событие incident с кодом INC-XXXXXX).
      Никаких ручных кнопок диагностики: проверки идут в фоне, в приложении — одна короткая фраза и один выход. */
   var INC_CSS = '#sc-inc{position:fixed;left:12px;right:12px;bottom:66px;z-index:11;display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 34px 10px 12px;' +
-    'border-radius:14px;background:rgba(14,32,72,.96);border:1px solid rgba(140,200,255,.22);color:#DCEBFF;font-size:12.5px;line-height:1.4}' +
-    '#sc-inc.on{display:flex}#sc-inc span{flex:1 1 100%}#sc-inc button{border:0;border-radius:10px;padding:8px 12px;background:linear-gradient(90deg,#2563eb,#38bdf8);color:#fff;font:inherit;font-weight:700;cursor:pointer}' +
-    '#sc-inc small{opacity:.6;font-size:11px}#sc-inc i{position:absolute;right:10px;top:8px;font-style:normal;cursor:pointer;opacity:.6;font-size:16px}#sc-inc i:hover{opacity:1}';
+    'border-radius:14px;background:#13191F;border:1px solid rgba(183,198,208,.2);color:#EEF2F5;font-size:12.5px;line-height:1.4}' +
+    '#sc-inc.on{display:flex}#sc-inc span{flex:1 1 100%}#sc-inc button{border:1px solid #E7ECEF;border-radius:10px;padding:8px 12px;background:#D9E1E6;color:#10151A;font:inherit;font-weight:700;cursor:pointer}' +
+    '#sc-inc small{opacity:.7;font-size:11px;color:#A9B5BD}#sc-inc i{position:absolute;right:10px;top:8px;font-style:normal;cursor:pointer;opacity:.7;font-size:16px;color:#A9B5BD}#sc-inc i:hover{opacity:1}';
   var incT = 0;
   function incHide() { clearTimeout(incT); var b = $('sc-inc'); if (b) b.classList.remove('on'); }
   function onIncident(ev) {

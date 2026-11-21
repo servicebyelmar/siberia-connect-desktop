@@ -750,7 +750,7 @@
     var left = '';
     try { left = 'осталось ' + d.days_left + ' ' + dword(d.days_left); } catch (e) {}
     prof.innerHTML = '<div class="scp"><div class="scp-top">' +
-      '<div class="scp-me"><i class="scp-ava">' + H((d.name || '❄').charAt(0).toUpperCase()) + '</i><div><b>' + H(d.name || 'Мой профиль') + '</b>' +
+      '<div class="scp-me"><i class="scp-ava">' + H((d.name || '🐺').charAt(0).toUpperCase()) + '</i><div><b>' + H(d.name || 'Мой профиль') + '</b>' +
       '<span class="scp-pill' + (act ? '' : ' bad') + '">' + pill + '</span></div></div>' +
       (act ? '<div class="scp-bar"><i style="width:' + pct + '%"></i></div><div class="scp-until"><span>до ' + H(until) + '</span><span>' + left + '</span></div>' : '') +
       (d.status === 'blocked' ? '' : '<button class="scp-renew" type="button" onclick="scRenew()">' + (act ? 'Продлить подписку' : 'Выбрать тариф') + '</button>') +

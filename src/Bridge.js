@@ -6,9 +6,9 @@
     try { window.chrome.webview.postMessage(JSON.stringify({ cmd: cmd, args: args || [] })); } catch (e) {}
   }
   /* 1.1.0: стекло Windows 11. Страница получает html.sc-glass и data-sc-backdrop="mica|acrylic|off";
-     фон делаем прозрачным с фирменным синим оттенком — под ним Mica/Acrylic окна. */
+     фон делаем прозрачным с фирменным графитовым оттенком — под ним Mica/Acrylic окна. */
   var GLASS_CSS = 'html.sc-glass{background:transparent!important}' +
-    'html.sc-glass body{background:rgba(6,15,42,var(--sc-glass-tint,.62))!important}' +
+    'html.sc-glass body{background:rgba(11,13,16,var(--sc-glass-tint,.78))!important}' +
     'html.sc-glass[data-sc-backdrop="acrylic"] body{--sc-glass-tint:.5}';
   function glass() {
     try {

@@ -203,7 +203,7 @@
     "html.win.scc.nonav #s-home .lgn,html.win.scc.nonav #s-home #lgbox{background:#13191F!important;border:1px solid rgba(183,198,208,.18)!important;box-shadow:none!important;backdrop-filter:none!important}",
     "html.win.scc.nonav #s-home .lgn .lg{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important;box-shadow:none!important}",
     "html.win.scc.nonav #s-home>.btn,html.win.scc.nonav #s-home #lgbox .btn{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
-    "html.win.scc.nonav #s-home .btn.ghost,html.win.scc.nonav #s-home #lgbox .btn.ghost{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.2)!important}"
+    "html.win.scc.nonav #s-home .btn.ghost,html.win.scc.nonav #s-home #lgbox .btn.ghost{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.2)!important}",
     "html.win.scc .sc-rd-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
     "html.win.scc #sc-au-help{background:rgba(4,7,10,.82)!important}",
     "html.win.scc #sc-au-help .box{background:#13191F!important;color:#EEF2F5!important;border:1px solid rgba(183,198,208,.2)!important;box-shadow:none!important}",

@@ -2,7 +2,7 @@ name: Build Windows
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, wolf-standard-redesign ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -106,6 +106,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Sign update (ключ только в секретах GitHub)
+        if: github.ref == 'refs/heads/main' || inputs.publish == true
         shell: pwsh
         env:
           UPDATE_KEY: ${{ secrets.UPDATE_KEY }}

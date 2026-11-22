@@ -4,7 +4,7 @@ namespace SiberiaConnect;
 
 /// <summary>
 /// 1.1.0: «стекло» Windows 11 (22H2+) — Mica или Acrylic под окном и заголовком.
-/// На Windows 10 и старых сборках 11 — графитовый заголовок без эффекта.
+/// На Windows 10 и старых сборках 11 — прежний тёмно-синий заголовок без эффекта.
 /// Интерфейс (WebView2) получает прозрачный фон, страница — класс html.sc-glass (см. Bridge.js).
 /// </summary>
 internal static class WindowFx
@@ -13,7 +13,7 @@ internal static class WindowFx
     public const string Acrylic = "acrylic";
     public const string Off = "off";
 
-    public static readonly Color Brand = Color.FromArgb(11, 13, 16);
+    public static readonly Color Brand = Color.FromArgb(6, 15, 42);
 
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_CAPTION_COLOR = 35;
@@ -70,7 +70,7 @@ internal static class WindowFx
                     var zero = new Margins();
                     DwmExtendFrameIntoClientArea(hwnd, ref zero);
                 }
-                int caption = 0x00100D0B;                                             // #0B0D10, графит
+                int caption = 0x003D1A08;                                             // #081A3D, как в 1.0.x
                 DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref caption, 4);
             }
         }

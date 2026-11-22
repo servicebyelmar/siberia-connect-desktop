@@ -9,12 +9,16 @@
     /* каркас окна */
     'html.win.scc,html.win.scc body{height:100vh;overflow:hidden!important;background:#060F2A}',
     'html.win.scc #wside,html.win.scc .nav,html.win.scc #apphead{display:none!important}',
-    'html.win.scc .wrap{position:fixed;top:0;bottom:58px;left:0;right:0;max-width:none;margin:0;padding:4px 14px 8px!important;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}',
+    'html.win.scc .wrap{position:fixed;top:34px;bottom:58px;left:0;right:0;max-width:none;margin:0;padding:4px 14px 8px!important;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}',
     'html.win.scc .wrap::-webkit-scrollbar{display:none}',
     'html.win.scc .wrap:has(#s-home.on),html.win.scc .wrap:has(#s-profile.on){overflow-y:hidden}',
     'html.win.scc.nonav .wrap{bottom:0;overflow-y:auto!important}',
     'html.win.scc .screen{max-width:none}',
     /* верхняя полоса: перетаскивание и × */
+    '.sc-top{position:fixed;left:0;right:0;top:0;height:34px;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 16px;-webkit-user-select:none;user-select:none}',
+    '.sc-brand{font-style:normal;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#6F8DB0;font-weight:700}',
+    '.sc-x{width:26px;height:26px;border:0;border-radius:50%;background:rgba(127,211,255,.08);color:#9FB8D6;font:inherit;font-size:18px;line-height:24px;text-align:center;cursor:pointer;padding:0;transition:background .2s,color .2s}',
+    '.sc-x:hover{background:rgba(255,157,176,.22);color:#FF9DB0}',
     /* нижняя навигация */
     '.sc-nav{position:fixed;left:0;right:0;bottom:0;height:58px;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);background:rgba(4,13,33,.97);border-top:1px solid rgba(159,184,214,.13)}',
     'html.win.nonav .sc-nav{display:none}',
@@ -51,7 +55,7 @@
     'html.win.scc .worbw{width:min(250px,calc(100vh - 400px));height:min(250px,calc(100vh - 400px));aspect-ratio:auto;flex:none;margin:14px auto}',
     'html.win.scc .wtitle{font-size:22px;margin:0;line-height:1.2}',
     'html.win.scc .wact{margin:8px 0 0;min-height:0}',
-    /* v-fix: знак волка не двигается при смене состояния (Connected/Connecting/Off).
+    /* v-fix: «снежинка» не двигается при смене состояния (Connected/Connecting/Off).
        Кнопка жёстко центрируется внутри контейнера фиксированного размера (inset, а не flow/transform),
        место под заголовок и кнопки действий зарезервировано — высота группы не меняется,
        поэтому flex-распорки не сдвигают кнопку; полоса прокрутки не может «уехать» вбок. */
@@ -64,12 +68,6 @@
     'html.win.scc .worbw{display:block;position:relative;align-self:center;margin-left:auto;margin-right:auto;contain:layout}',
     'html.win.scc .worb{position:absolute;inset:12%;width:auto;height:auto;margin:0;display:block}',
     'html.win.scc .worb>svg{position:absolute;inset:21%;width:58%;height:58%;transform-origin:50% 50%}',
-    /* full-bleed: волк от края до края без чёрных полей по бокам */
-    'html.win.scc .wrap:has(#s-home.on){top:0!important;padding-top:0!important}',
-    'html.win.scc .wcenter:before{display:none!important}',
-    'html.win.scc .worbw{width:calc(100% + 28px)!important;max-width:none!important;height:clamp(128px,38vh,310px)!important;margin:0 -14px 4px -14px!important;border-radius:0!important}',
-    'html.win.scc .worb{position:relative!important;inset:0!important;width:100%!important;height:100%!important;border-radius:0!important;border:0!important;box-shadow:none!important;background:#060F2A!important;-webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%);mask-image:linear-gradient(to bottom,#000 76%,transparent 100%)}',
-    'html.win.scc .worb video,html.win.scc .worb img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:0!important}',
     'html.win.scc .wtitle{height:27px;line-height:27px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}',
     'html.win.scc .wact{height:40px;min-height:40px;margin:8px 0 0;align-items:center}',
     'html.win.scc .wact:empty{display:flex}',
@@ -82,7 +80,7 @@
     'html.win.scc .wip{margin:0;font-size:13px;font-weight:600;word-break:normal;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;justify-content:center}',
     'html.win.scc .wip small{display:inline!important;margin:0;font-size:12px;font-weight:500}',
     /* плашка «Доступно обновление» */
-    '.sc-upd{display:none;position:fixed;left:14px;right:14px;top:4px;z-index:9;height:40px;align-items:center;gap:8px;padding:0 8px 0 12px;border:1px solid rgba(61,224,194,.35);border-radius:12px;background:linear-gradient(110deg,rgba(61,224,194,.16),rgba(127,211,255,.08));font-size:12.5px;font-weight:600}',
+    '.sc-upd{display:none;position:fixed;left:14px;right:14px;top:38px;z-index:9;height:40px;align-items:center;gap:8px;padding:0 8px 0 12px;border:1px solid rgba(61,224,194,.35);border-radius:12px;background:linear-gradient(110deg,rgba(61,224,194,.16),rgba(127,211,255,.08));font-size:12.5px;font-weight:600}',
     '.sc-upd.on{display:flex}',
     '.sc-upd span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.sc-upd button{border:0;border-radius:9px;padding:6px 11px;font:inherit;font-weight:700;font-size:12px;cursor:pointer;color:#062138;background:#3DE0C2}',
@@ -90,7 +88,7 @@
     'html.win.scc.scu .wrap{top:84px}',
     'html.win.scc.scu .sc-set{top:84px}',
     /* вкладка «Настройки» */
-    '.sc-set{display:none;position:fixed;left:0;right:0;top:0;bottom:58px;z-index:8;padding:6px 14px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:#060F2A}',
+    '.sc-set{display:none;position:fixed;left:0;right:0;top:34px;bottom:58px;z-index:8;padding:6px 14px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:#060F2A}',
     '.sc-set::-webkit-scrollbar{display:none}',
     '.sc-set.on{display:block}',
     '.sc-set .scdis{opacity:.5;cursor:default}',
@@ -118,124 +116,15 @@
     '.scp-tile i svg{width:18px;height:18px}',
     '.scp-tile span{min-width:0;max-width:100%}',
     '.scp-tile b{display:block;font-size:14px}',
-    '.scp-tile small{display:block;margin-top:2px;font-size:11.5px;color:#9FB8D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-
-    /* ── Windows 360×640: final layout overrides (CSS only; wolf_js is untouched) ── */
-    'html.win.scc,html.win.scc body{width:100%;max-width:100%;min-width:0;height:100vh;margin:0;padding:0;overflow:hidden!important;overflow-x:hidden!important;background:#060F2A!important;scrollbar-gutter:auto!important}',
-    'html.win.scc .wrap{left:0!important;right:0!important;width:100%!important;max-width:none!important;min-width:0!important;overflow-x:hidden!important}',
-    'html.win.scc .wrap:has(#s-home.on){top:0!important;bottom:58px!important;padding:0 14px 8px!important;overflow:hidden!important}',
-    'html.win.scc #s-home,html.win.scc .screen{min-width:0!important;max-width:none!important;box-sizing:border-box}',
-    'html.win.scc #s-home.on{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;margin:0!important;padding:0!important;overflow:visible!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}',
-    'html.win.scc #s-home.on .an-hero{display:flex;flex:1 1 auto;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:0;width:100%;min-width:0;min-height:0;padding:0;overflow:visible}',
-    'html.win.scc #s-home.on .w3-hero{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;max-width:480px;width:100%;margin:auto;min-height:min-content;padding:12px 0}',
-    'html.win.scc #s-home.on #anc{position:relative;display:block;flex:none;width:min(100%,clamp(130px,38vh,290px))!important;height:auto!important;aspect-ratio:1;margin:0!important;padding:0;border:0;background:none;overflow:visible}',
-    'html.win.scc #s-home.on #anc .wf{position:absolute;inset:0;width:100%;height:100%}',
-    'html.win.scc #s-home.on #anc .an-ring{z-index:2}',
-    'html.win.scc #s-home.on .an-stat{flex:none;line-height:1.25}',
-    'html.win.scc #s-home.on .an-time{flex:none;line-height:1.1}',
-    'html.win.scc #s-home.on .w3-node{width:100%;max-width:440px;margin:12px auto 0}',
-    'html.win.scc .wrap:has(#s-nodes.on){overflow-y:auto!important;scrollbar-width:thin;scrollbar-color:#417b91 #081523}',
-    'html.win.scc .wrap:has(#s-nodes.on)::-webkit-scrollbar{display:block;width:8px}',
-    'html.win.scc .wrap:has(#s-nodes.on)::-webkit-scrollbar-thumb{background:#417b91;border-radius:6px}',
-    'html.win.scc #s-home.on .an-node{flex:0 0 auto;width:100%;max-width:100%;min-width:0;margin:6px 0 0;box-sizing:border-box}',
-    'html.win3.scc:not(.nonav) .sc-nav{display:grid!important;z-index:20}',
-    'html.win3.scc #w3bar{display:none!important}',
-    'html.win.scc .sc-set{box-sizing:border-box;width:100%;max-width:100%;min-width:0;overflow-x:hidden}',
-    'html.win.scc .sc-set *{min-width:0;max-width:100%;box-sizing:border-box}',
-    'html.win.scc .wrap .screen{width:100%;min-width:0;max-width:none;margin-left:auto;margin-right:auto}',
-    'html.win.scc .wrap .screen *{min-width:0}',
-    'html.win.scc .wrap .screen img,html.win.scc .wrap .screen video,html.win.scc .wrap .screen svg{max-width:100%}',
-    'html.win.scc .wrap .screen input,html.win.scc .wrap .screen textarea,html.win.scc .wrap .screen select{max-width:100%;min-width:0}',
-    'html.win.scc .wrap:has(#s-home.on),html.win.scc .wrap:has(#s-profile.on){scrollbar-gutter:auto!important}',
-    /* Login: isolate the unauthenticated screen from all cabinet chrome/backgrounds. */
-    'html.win.scc.nonav,html.win.scc.nonav body{width:100%;height:100vh;margin:0!important;padding:0!important;overflow:hidden!important;background:#060F2A!important;background-image:none!important}',
-    'html.win.scc.nonav .aurora,html.win.scc.nonav .snow,html.win.scc.nonav .nxstars,html.win.scc.nonav #wside,html.win.scc.nonav #apphead,html.win.scc.nonav .nav,html.win.scc.nonav .head{display:none!important}',
-    'html.win.scc.nonav .wrap,html.win.scc.nonav .wrap:has(#s-home.on){position:fixed!important;top:0!important;right:0!important;bottom:0!important;left:0!important;display:flex;align-items:center;justify-content:center;width:100%!important;max-width:none!important;min-width:0;padding:18px!important;margin:0!important;overflow-x:hidden!important;overflow-y:auto!important;background:#060F2A!important;scrollbar-gutter:auto!important}',
-    'html.win.scc.nonav #s-home.on{display:block;flex:0 0 auto;width:min(100%,324px);max-width:324px;max-height:100%;min-width:0;height:auto;margin:0 auto!important;padding:20px!important;overflow-x:hidden!important;overflow-y:auto!important;border:1px solid rgba(127,211,255,.18)!important;border-radius:22px!important;background:linear-gradient(145deg,rgba(16,39,80,.88),rgba(7,20,48,.96))!important;box-shadow:0 24px 80px rgba(0,0,0,.38)!important}',
-    'html.win.scc.nonav #s-home .lgn{padding:0 0 12px!important;text-align:center}',
-    'html.win.scc.nonav #s-home .lgn .lg{width:78px;height:78px;margin:0 auto 12px}',
-    'html.win.scc.nonav #s-home #lgbox,html.win.scc.nonav #s-home #codebox{width:100%;min-width:0;max-width:100%}',
-    'html.win.scc.nonav #s-home>.btn,html.win.scc.nonav #s-home #lgbox .btn{width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin-top:10px}',
-    'html.win.scc.nonav #s-home input,html.win.scc.nonav #s-home textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box}',
-    "html.win.scc,html.win.scc body{background:#0B0D10!important;color:#EEF2F5}",
-    "html.win.scc .sc-nav{background:rgba(11,13,16,.98);border-top:1px solid rgba(183,198,208,.16)}",
-    "html.win.scc .sc-nav button{color:#A9B5BD}",
-    "html.win.scc .sc-nav button.on{color:#D9E1E6}",
-    "html.win.scc .worb{background:#0B0D10!important}",
-    "html.win.scc .wstat,html.win.scc .wsrv,html.win.scc .wcard,html.win.scc .scp,html.win.scc .sc-upd{background:#13191F!important;border:1px solid rgba(183,198,208,.17)!important;box-shadow:none!important}",
-    "html.win.scc .wtitle,html.win.scc .wstat b,html.win.scc .wsrv b{color:#EEF2F5}",
-    "html.win.scc .wstat small,html.win.scc .wsrv small,html.win.scc .wip small{color:#A9B5BD}",
-    "html.win.scc .wbtn,html.win.scc button.wbtn{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
-    "html.win.scc .wbtn.secondary{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.2)!important}",
-    "html.win.scc .worb:focus-visible{outline:2px solid #D9E1E6!important}",
-    "html.win.scc .sc-upd{background:#13191F!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.22)!important}",
-    "html.win.scc .scp-pill{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
-    "html.win.scc .scp-bar{background:#0B0D10!important}",
-    "html.win.scc .scp-bar i{background:#91AA9D!important}",
-    "html.win.scc input,html.win.scc select,html.win.scc textarea{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
-    "html.win.scc :focus-visible{outline:2px solid #D9E1E6!important;outline-offset:3px}",
-    "html.win.scc .sc-set{background:#0B0D10!important;color:#EEF2F5!important}",
-    "html.win.scc .sc-set .scft{color:#84919A!important}",
-    "html.win.scc .scp-top{background:#13191F!important;border:1px solid rgba(183,198,208,.17)!important;box-shadow:none!important}",
-    "html.win.scc .scp-ava{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
-    "html.win.scc .scp-pill{color:#91AA9D!important}",
-    "html.win.scc .scp-bar{background:#0B0D10!important}",
-    "html.win.scc .scp-bar i{background:#91AA9D!important}",
-    "html.win.scc .scp-renew{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
-    "html.win.scc .sc-upd button{background:#D9E1E6!important;color:#10151A!important;box-shadow:none!important}",
-    "html.win.scc .sc-upd button.g{background:#1A2229!important;color:#D9E1E6!important}",
-    "html.win.scc #sc-auth{background:#0B0D10!important;color:#EEF2F5!important}",
-    "html.win.scc #sc-auth .sc-au-c,html.win.scc #sc-auth .box{background:#13191F!important;border:1px solid rgba(183,198,208,.18)!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#EEF2F5!important}",
-    "html.win.scc #sc-auth .sc-au-s,html.win.scc #sc-auth p{color:#A9B5BD!important}",
-    "html.win.scc #sc-auth .sc-au-code{color:#D9E1E6!important}",
-    "html.win.scc #sc-auth .sc-au-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
-    "html.win.scc #sc-auth .sc-au-in:focus{border-color:#D9E1E6!important;box-shadow:0 0 0 3px rgba(217,225,230,.1)!important}",
-    "html.win.scc #sc-auth .sc-au-b{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important}",
-    "html.win.scc #sc-auth .sc-au-b.p{background:#D9E1E6!important;color:#10151A!important;border-color:#E7ECEF!important;box-shadow:none!important}",
-    "html.win.scc #sc-auth #sc-au-help{background:rgba(4,7,10,.82)!important}",
-    "html.win.scc .sc-rd-fab{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.24)!important;box-shadow:none!important}",
-    "html.win.scc .sc-rd-msg.wt{color:#D9E1E6!important}",
-    "html.win.scc .sc-rd-p{color:#A9B5BD!important}",
-    "html.win.scc.nonav #s-home .lgn,html.win.scc.nonav #s-home #lgbox{background:#13191F!important;border:1px solid rgba(183,198,208,.18)!important;box-shadow:none!important;backdrop-filter:none!important}",
-    "html.win.scc.nonav #s-home .lgn .lg{background:#1A2229!important;color:#D9E1E6!important;border:1px solid rgba(183,198,208,.2)!important;box-shadow:none!important}",
-    "html.win.scc.nonav #s-home>.btn,html.win.scc.nonav #s-home #lgbox .btn{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
-    "html.win.scc.nonav #s-home .btn.ghost,html.win.scc.nonav #s-home #lgbox .btn.ghost{background:#1A2229!important;color:#D9E1E6!important;border-color:rgba(183,198,208,.2)!important}",
-    "html.win.scc .sc-rd-in{background:#0E1318!important;color:#EEF2F5!important;border-color:rgba(183,198,208,.24)!important}",
-    "html.win.scc #sc-au-help{background:rgba(4,7,10,.82)!important}",
-    "html.win.scc #sc-au-help .box{background:#13191F!important;color:#EEF2F5!important;border:1px solid rgba(183,198,208,.2)!important;box-shadow:none!important}",
-    "html.win.scc #sc-auth .sc-au-qr{background:#FFFFFF!important;border:1px solid rgba(183,198,208,.24)!important}",
-    "html.win.scc #sc-auth .sc-au-ov{background:rgba(255,255,255,.96)!important;color:#10151A!important}",
-    "html.win.scc .scp-pill.bad{color:#D2A0A6!important}",
-    "html.win.scc #sc-inc{background:#13191F!important;border-color:rgba(183,198,208,.2)!important;color:#EEF2F5!important}",
-    "html.win.scc #sc-inc button{background:#D9E1E6!important;color:#10151A!important;border:1px solid #E7ECEF!important;box-shadow:none!important}",
-    "html.win.scc #sc-inc small{color:#A9B5BD!important}",
-    "html.win.scc .sc-rd-in:focus{border-color:#D9E1E6!important;box-shadow:0 0 0 3px rgba(217,225,230,.1)!important}",
-    "html.win.scc .sc-rd-msg.er{color:#D2A0A6!important}",
-    "html.win.scc .sc-rd-msg.wt{color:#A9B8C1!important}",
-        "html.win.scc .scp-tile{background:#1A2229!important;border:1px solid rgba(183,198,208,.18)!important;color:#EEF2F5!important;box-shadow:none!important;border-radius:12px!important}",
-    "html.win.scc .scp-tile:hover{background:#202A32!important;border-color:rgba(217,225,230,.32)!important}",
-    "html.win.scc .scp-tile i{background:#13191F!important;color:#D9E1E6!important}",
-    "html.win.scc .scp-tile small{color:#A9B5BD!important}",
-    "html.win.scc .worb video,html.win.scc .worb img{filter:grayscale(.72) contrast(1.08)!important}",
-    "html.win.scc .sc-nav button.on{color:#D9E1E6!important}",
-    "html.win.scc .sc-nav button:hover{color:#EEF2F5!important}",
-    "html.win.scc .wrap,html.win.scc .wrap:has(.screen.on),html.win.scc .sc-set{overflow-y:auto!important;scrollbar-width:thin;scrollbar-color:#718b99 #101f2b}",
-    "html.win.scc .wrap::-webkit-scrollbar{display:block;width:8px}",
-    "html.win.scc .wrap::-webkit-scrollbar-thumb{background:#718b99;border-radius:8px}",
-    "html.win.scc #s-home.on{height:auto!important;min-height:100%!important}",
-    "html.win.scc :focus-visible{outline:2px solid #a3f1ff!important;outline-offset:2px}",
-    "html.win.scc .sc-nav button.on{color:#a3f1ff!important;background:#152b3d!important}",
-    "html.win.scc .scp-tile small,html.win.scc .wstat small{font-size:14px;white-space:normal;overflow-wrap:anywhere}",
-    "html.win.scc .scp-tile{background:#101f2b!important;color:#f2f7fa!important}",
-    "html.win.scc .scp-tile:active{background:#152b3d!important}",
-    ].join('\n');
+    '.scp-tile small{display:block;margin-top:2px;font-size:11.5px;color:#9FB8D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+  ].join('\n');
 
   var ICON = {
     vpn: '<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     profile: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-3.5 3.1-5.3 7-5.3s6.3 1.8 7 5.3"/>'
   };
-  var NAMES = { vpn: 'Подключение', settings: 'Настройки', profile: 'Профиль' };
+  var NAMES = { vpn: 'VPN', settings: 'Настройки', profile: 'Профиль' };
 
   function $(id) { return document.getElementById(id); }
   function send(cmd, args) { try { window.chrome.webview.postMessage(JSON.stringify({ cmd: cmd, args: args || [] })); } catch (e) {} }
@@ -248,6 +137,15 @@
   var nav, set;
 
   function buildChrome() {
+    var top = document.createElement('div');
+    top.className = 'sc-top';
+    top.innerHTML = '<i class="sc-brand">Siberia Connect</i><button class="sc-x" id="sc-x" type="button" aria-label="Свернуть в трей" >×</button>';
+    top.addEventListener('mousedown', function (e) {
+      if (e.button === 0 && !(e.target.closest && e.target.closest('.sc-x'))) send('drag');
+    });
+    top.querySelector('.sc-x').addEventListener('click', function () { send('hide'); });
+    document.body.appendChild(top);
+
     var ub = document.createElement('div');
     ub.className = 'sc-upd';
     ub.id = 'sc-upd';
@@ -262,7 +160,7 @@
       var b = e.target.closest && e.target.closest('button');
       if (!b) return;
       var k = b.getAttribute('data-k');
-      if (k === 'settings') { drawSettings(); set.classList.add('on'); set.tabIndex = -1; set.focus(); }
+      if (k === 'settings') { drawSettings(); set.classList.add('on'); }
       else { hideSettings(); try { go(k === 'vpn' ? 'home' : 'profile'); } catch (x) {} }
       sync();
     });
@@ -272,13 +170,6 @@
     set.className = 'sc-set';
     set.id = 'sc-settings';
     document.body.appendChild(set);
-    set.addEventListener('keydown', function (e) {
-      if (e.key !== 'Escape' || e.defaultPrevented) return;
-      hideSettings();
-      sync();
-      nav.querySelector('[data-k="settings"]').focus();
-      e.preventDefault();
-    });
   }
 
   function hideSettings() { if (set) set.classList.remove('on'); }
@@ -564,29 +455,29 @@
     var n = M.length, q = 3, d = '';
     for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (M[y][x]) d += 'M' + (x + q) + ' ' + (y + q) + 'h1v1h-1z';
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + (n + 2 * q) + ' ' + (n + 2 * q) + '" shape-rendering="crispEdges" role="img" ' +
-      'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#0B0D10"/></svg>';
+      'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#050D1A"/></svg>';
   }
 
-  var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:0;bottom:0;z-index:50;overflow-y:auto;background:#0B0D10;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#EEF2F5}' +
+  var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:34px;bottom:0;z-index:50;overflow-y:auto;background:#060F2A;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#DFF1FF}' +
     '#sc-auth.on{display:block}#sc-auth.hold{display:none}' +
     '#sc-auth h1{font-size:19px;margin:6px 0 12px;text-align:center}' +
     '.sc-au-g{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;max-width:900px;margin:0 auto}' +
     '@media (min-width:720px){.sc-au-g{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}' +
-    '.sc-au-c{background:#13191F;border:1px solid rgba(183,198,208,.18);border-radius:16px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}' +
-    '.sc-au-c h2{font-size:15px;margin:0}.sc-au-s{font-size:12.5px;line-height:1.5;color:#A9B5BD;margin:0}' +
+    '.sc-au-c{background:#102444;border:1px solid #1C5A80;border-radius:18px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}' +
+    '.sc-au-c h2{font-size:15px;margin:0}.sc-au-s{font-size:12.5px;line-height:1.5;color:#9CC3E8;margin:0}' +
     '.sc-au-qr{position:relative;width:184px;height:184px;border-radius:14px;background:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center}' +
     '.sc-au-qr svg{width:100%;height:100%;display:block}#sc-au-img{width:100%;height:100%}' +
-    '.sc-au-ov{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(255,255,255,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#10151A;font-size:13px;padding:8px}' +
+    '.sc-au-ov{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(255,255,255,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#1B2B44;font-size:13px;padding:8px}' +
     '.sc-au-qr.ov .sc-au-ov{display:flex}.sc-au-qr.ov svg{visibility:hidden}' +
-    '.sc-au-code{font:700 28px/1 Consolas,monospace;letter-spacing:.14em;color:#D9E1E6}' +
-    '.sc-au-in{width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;border:1px solid rgba(183,198,208,.24);background:#0E1318;color:#EEF2F5;font-size:14px;padding:0 12px}' +
-    '.sc-au-in:focus{outline:none;border-color:#D9E1E6;box-shadow:0 0 0 3px rgba(217,225,230,.1)}' +
+    '.sc-au-code{font:700 28px/1 Consolas,monospace;letter-spacing:.14em;color:#00D2FF}' +
+    '.sc-au-in{width:100%;box-sizing:border-box;min-height:46px;border-radius:12px;border:1px solid rgba(140,200,255,.3);background:rgba(0,0,0,.25);color:#fff;font-size:14px;padding:0 12px}' +
+    '.sc-au-in:focus{outline:none;border-color:#7fd3ff;box-shadow:0 0 0 3px rgba(127,211,255,.2)}' +
     '.sc-au-row{display:flex;gap:8px;width:100%}.sc-au-row>*{flex:1}.sc-au-row>.sc-au-b2{flex:2}' +
-    '.sc-au-b{min-height:44px;border-radius:12px;border:1px solid rgba(183,198,208,.2);background:#1A2229;color:#D9E1E6;font:inherit;font-size:14px;cursor:pointer;padding:0 12px}' +
-    '.sc-au-b.p{background:#D9E1E6;color:#10151A;border:1px solid #E7ECEF;font-weight:700}' +
-    '.sc-au-b:disabled{opacity:.55;cursor:default}.sc-au-b:focus-visible,.sc-au-in:focus-visible{outline:2px solid #D9E1E6;outline-offset:3px}' +
-    '#sc-au-help{position:fixed;left:0;right:0;top:0;bottom:0;z-index:60;background:rgba(4,7,10,.82);display:none;align-items:center;justify-content:center;padding:18px}' +
-    '#sc-au-help.on{display:flex}#sc-au-help .box{background:#13191F;border:1px solid rgba(183,198,208,.2);border-radius:16px;padding:18px;max-width:420px;text-align:left;font-size:13.5px;line-height:1.6}' +
+    '.sc-au-b{min-height:44px;border-radius:12px;border:1px solid rgba(127,211,255,.4);background:rgba(10,30,70,.9);color:#cfeaff;font:inherit;font-size:14px;cursor:pointer;padding:0 12px}' +
+    '.sc-au-b.p{background:linear-gradient(90deg,#00D2FF,#0080FF);color:#03121F;border:0;font-weight:700}' +
+    '.sc-au-b:disabled{opacity:.55;cursor:default}.sc-au-b:focus-visible,.sc-au-in:focus-visible{outline:3px solid #fff;outline-offset:2px}' +
+    '#sc-au-help{position:fixed;left:0;right:0;top:0;bottom:0;z-index:60;background:rgba(2,8,20,.78);display:none;align-items:center;justify-content:center;padding:18px}' +
+    '#sc-au-help.on{display:flex}#sc-au-help .box{background:#102444;border:1px solid #1C5A80;border-radius:18px;padding:18px;max-width:420px;text-align:left;font-size:13.5px;line-height:1.6}' +
     '#sc-au-help .t{display:block;font-size:16px;font-weight:700;margin-bottom:8px}#sc-au-help p{margin:0 0 8px}';
 
   function auBuild() {
@@ -684,14 +575,14 @@
   }
   document.addEventListener('visibilitychange', function () { if (document.hidden) auStop(); else setTimeout(authTick, 0); });
 
-  /* ───── 1.6.0: анимация кнопки-волка ─────
+  /* ───── 1.6.0: «снежинка» ─────
      1) Страница ставит html.paused (все анимации замирают), когда document.hidden, и снимает по visibilitychange. После сворачивания
         в трей / сна / смены окна WebView2 может не прислать обратное событие — кнопка так и остаётся «замороженной».
         Поэтому видимое окно само снимает паузу и перезапускает анимации кнопки (раз в 300 мс — вместе с sync, и по событиям).
      2) Кольца и волна лежат над/рядом с кнопкой: им нельзя ловить клики (иначе кольцо с анимацией перехватывает нажатие). */
   var FLAKE_CSS = 'html.win.scc .wzring,html.win.scc .wzring2,html.win.scc .wtick,html.win.scc .wwave{pointer-events:none}' +
     'html.win.scc .worb{z-index:1;touch-action:manipulation;-webkit-tap-highlight-color:transparent}' +
-    'html.win.scc .worb:focus{outline:none}html.win.scc .worb:focus-visible{outline:2px solid #D9E1E6;outline-offset:6px}';
+    'html.win.scc .worb:focus{outline:none}html.win.scc .worb:focus-visible{outline:2px solid #7FD3FF;outline-offset:6px}';
   function kickFlake() {
     var o = $('worb');
     if (!o) return;
@@ -709,13 +600,13 @@
     if (!document.hidden && d.classList.contains('paused')) { d.classList.remove('paused'); kickFlake(); }
   }
 
-  var RD_CSS = '.sc-rd-in{width:100%;box-sizing:border-box;min-height:48px;border-radius:12px;border:1px solid rgba(183,198,208,.24);' +
-    'background:#0E1318;color:#EEF2F5;font-size:15px;padding:0 14px;margin:6px 0 4px}.sc-rd-in:focus{outline:none;border-color:#D9E1E6;' +
-    'box-shadow:0 0 0 3px rgba(217,225,230,.1)}.sc-rd-p{text-align:left;font-size:13px;line-height:1.55}.sc-rd-p code{font-size:12px}' +
-    '.sc-rd-msg{min-height:20px;font-size:13px;margin:4px 0 8px}.sc-rd-msg.er{color:#D2A0A6}.sc-rd-msg.wt{color:#A9B8C1}' +
-    '.sc-rd-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:60;border:1px solid rgba(183,198,208,.24);' +
-    'background:#1A2229;color:#D9E1E6;border-radius:12px;padding:10px 18px;font-size:14px;cursor:pointer;display:none}' +
-    '.sc-rd-fab.on{display:block}.sc-rd-fab:focus-visible{outline:2px solid #D9E1E6;outline-offset:3px}';
+  var RD_CSS = '.sc-rd-in{width:100%;box-sizing:border-box;min-height:48px;border-radius:14px;border:1px solid rgba(140,200,255,.3);' +
+    'background:rgba(0,0,0,.25);color:#fff;font-size:15px;padding:0 14px;margin:6px 0 4px}.sc-rd-in:focus{outline:none;border-color:#7fd3ff;' +
+    'box-shadow:0 0 0 3px rgba(127,211,255,.2)}.sc-rd-p{text-align:left;font-size:13px;line-height:1.55}.sc-rd-p code{font-size:12px}' +
+    '.sc-rd-msg{min-height:20px;font-size:13px;margin:4px 0 8px}.sc-rd-msg.er{color:#ff8a8a}.sc-rd-msg.wt{color:#7fd3ff}' +
+    '.sc-rd-fab{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:60;border:1px solid rgba(127,211,255,.35);' +
+    'background:rgba(10,30,70,.92);color:#cfeaff;border-radius:22px;padding:10px 18px;font-size:14px;cursor:pointer;display:none}' +
+    '.sc-rd-fab.on{display:block}.sc-rd-fab:focus-visible{outline:2px solid #7fd3ff;outline-offset:2px}';
   function rdFab() {
     var f = $('sc-rd-fab');
     if (!f) {
@@ -730,7 +621,7 @@
   }
 
   /* ───── правки текстов и реферальная карточка ───── */
-  var TITLE = { 'Защищено': 'Подключено', 'Нажми на волка': 'Отключено' };
+  var TITLE = { 'Защищено': 'Подключено', 'Нажми на снежинку': 'Отключено' };
 
   function tidy() {
     var t = $('wtitle');
@@ -778,7 +669,7 @@
     var left = '';
     try { left = 'осталось ' + d.days_left + ' ' + dword(d.days_left); } catch (e) {}
     prof.innerHTML = '<div class="scp"><div class="scp-top">' +
-      '<div class="scp-me"><i class="scp-ava">' + H((d.name || '🐺').charAt(0).toUpperCase()) + '</i><div><b>' + H(d.name || 'Мой профиль') + '</b>' +
+      '<div class="scp-me"><i class="scp-ava">' + H((d.name || '❄').charAt(0).toUpperCase()) + '</i><div><b>' + H(d.name || 'Мой профиль') + '</b>' +
       '<span class="scp-pill' + (act ? '' : ' bad') + '">' + pill + '</span></div></div>' +
       (act ? '<div class="scp-bar"><i style="width:' + pct + '%"></i></div><div class="scp-until"><span>до ' + H(until) + '</span><span>' + left + '</span></div>' : '') +
       (d.status === 'blocked' ? '' : '<button class="scp-renew" type="button" onclick="scRenew()">' + (act ? 'Продлить подписку' : 'Выбрать тариф') + '</button>') +
@@ -817,9 +708,9 @@
      Плашка появляется ТОЛЬКО когда сервер принял отчёт о реальном сбое (событие incident с кодом INC-XXXXXX).
      Никаких ручных кнопок диагностики: проверки идут в фоне, в приложении — одна короткая фраза и один выход. */
   var INC_CSS = '#sc-inc{position:fixed;left:12px;right:12px;bottom:66px;z-index:11;display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 34px 10px 12px;' +
-    'border-radius:14px;background:#13191F;border:1px solid rgba(183,198,208,.2);color:#EEF2F5;font-size:12.5px;line-height:1.4}' +
-    '#sc-inc.on{display:flex}#sc-inc span{flex:1 1 100%}#sc-inc button{border:1px solid #E7ECEF;border-radius:10px;padding:8px 12px;background:#D9E1E6;color:#10151A;font:inherit;font-weight:700;cursor:pointer}' +
-    '#sc-inc small{opacity:.7;font-size:11px;color:#A9B5BD}#sc-inc i{position:absolute;right:10px;top:8px;font-style:normal;cursor:pointer;opacity:.7;font-size:16px;color:#A9B5BD}#sc-inc i:hover{opacity:1}';
+    'border-radius:14px;background:rgba(14,32,72,.96);border:1px solid rgba(140,200,255,.22);color:#DCEBFF;font-size:12.5px;line-height:1.4}' +
+    '#sc-inc.on{display:flex}#sc-inc span{flex:1 1 100%}#sc-inc button{border:0;border-radius:10px;padding:8px 12px;background:linear-gradient(90deg,#2563eb,#38bdf8);color:#fff;font:inherit;font-weight:700;cursor:pointer}' +
+    '#sc-inc small{opacity:.6;font-size:11px}#sc-inc i{position:absolute;right:10px;top:8px;font-style:normal;cursor:pointer;opacity:.6;font-size:16px}#sc-inc i:hover{opacity:1}';
   var incT = 0;
   function incHide() { clearTimeout(incT); var b = $('sc-inc'); if (b) b.classList.remove('on'); }
   function onIncident(ev) {

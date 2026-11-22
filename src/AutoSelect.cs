@@ -173,7 +173,7 @@ public sealed partial class VpnCore
 
     // ───────────── 1.6.0: серверный рейтинг узлов и мост «Тайга» ─────────────
     private const int RankTimeoutMs = 3000;
-    private static readonly (string key, string word)[] NodeWords = { ("buran", "Буран"), ("ice", "Ледокол"), ("taiga", "Тайга"), ("irbis", "Ирбис") };
+    private static readonly (string key, string word)[] NodeWords = { ("buran", "Буран"), ("ice", "Ледокол"), ("taiga", "Тайга") };
 
     private sealed record NodeRank(int Rank, bool Available, double Load);
 

@@ -43,14 +43,15 @@ public sealed class MainForm : Form
         Icon = _iconOn;
         BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedSingle;
+        // 1.4.0: компактное вертикальное окно «одна кнопка»; размер задаётся при 100% масштаба и растёт по DPI
+        // бесрамочное окно со скруглёнными углами: шапку и кнопку × рисует сама страница (Compact.js)
+        FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false;
         ClientSize = new Size(360, 640);
         MinimumSize = Size;
-        MaximumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
-        // Wolf Standard: фирменный знак сибирского волка рисуется векторно на заставке
+        // 1.4.0: арктическая заставка (assets/splash.png — ледокол; пока файла нет, рисуется заготовка с логотипом)
         _splash = new SplashPanel();
         Controls.Add(_splash);
         _splash.BringToFront();
@@ -137,10 +138,35 @@ public sealed class MainForm : Form
     {
         base.OnHandleCreated(e);
         ApplyBackdrop();
+        ApplyShape();
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        ApplyShape();
     }
 
     [DllImport("user32.dll")] private static extern bool ReleaseCapture();
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>Скруглённые углы (радиус 18 px при 100% масштаба) — одинаково на Windows 10 и 11.</summary>
+    private void ApplyShape()
+    {
+        if (!IsHandleCreated || Width < 40 || Height < 40) return;
+        try
+        {
+            int d = (int)Math.Round(36 * DeviceDpi / 96.0);
+            using var gp = new System.Drawing.Drawing2D.GraphicsPath();
+            gp.AddArc(0, 0, d, d, 180, 90);
+            gp.AddArc(Width - d, 0, d, d, 270, 90);
+            gp.AddArc(Width - d, Height - d, d, d, 0, 90);
+            gp.AddArc(0, Height - d, d, d, 90, 90);
+            gp.CloseFigure();
+            Region = new Region(gp);
+        }
+        catch (Exception ex) { Log.Write("shape: " + ex.Message); }
+    }
 
     // ───────────────────────── 1.1.0: стекло Windows 11 ─────────────────────────
 
@@ -544,7 +570,6 @@ public sealed class MainForm : Form
         s.IsGeneralAutofillEnabled = false;
         s.IsPasswordAutosaveEnabled = false;
 
-        WolfAssets.Attach(cw);
         _bridgeId = await cw.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript());
         cw.WebMessageReceived += OnWebMessage;
         cw.NavigationStarting += OnNavigationStarting;

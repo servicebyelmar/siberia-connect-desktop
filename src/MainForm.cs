@@ -49,7 +49,6 @@ public sealed class MainForm : Form
         MinimumSize = SizeFromClientSize(new Size(320, 400));
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
-        // Wolf Standard: фирменный знак сибирского волка рисуется векторно на заставке
         _splash = new SplashPanel();
         Controls.Add(_splash);
         _splash.BringToFront();
@@ -564,7 +563,9 @@ public sealed class MainForm : Form
         var init = Snapshot();
         init["version"] = AppInfo.Version;
         init["deviceId"] = Core.DeviceId;
-        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString()) + "\n" + AppInfo.ResourceText("Compact.js");
+        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString())
+            + "\n" + AppInfo.ResourceText("Compact.js")
+            + "\n" + AppInfo.ResourceText("WolfLive.js");
     }
 
     private static bool IsOurs(string uri) =>

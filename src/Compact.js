@@ -130,7 +130,13 @@
     'html.win.scc #s-home.on .w3-hero{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;max-width:480px;width:100%;margin:auto;min-height:min-content;padding:12px 0}',
     'html.win.scc #s-home.on #anc{position:relative;display:block;flex:none;width:min(100%,clamp(130px,38vh,290px))!important;height:auto!important;aspect-ratio:1;margin:0!important;padding:0;border:0;background:none;overflow:visible}',
     'html.win.scc #s-home.on #anc .wf{position:absolute;inset:0;width:100%;height:100%}',
+    'html.win.scc #s-home.on #anc .wf-m{position:absolute;inset:8%;overflow:hidden;border-radius:50%;isolation:isolate;mix-blend-mode:normal;background:#081523;mask-image:none}',
+    'html.win.scc #s-home.on #anc .wf-i{position:absolute;inset:7%;width:86%;height:86%;object-fit:contain!important;object-position:center;transform:none!important;mask-image:radial-gradient(ellipse closest-side,#000 80%,transparent 100%)}',
     'html.win.scc #s-home.on #anc .an-ring{z-index:2}',
+    'html.win.scc #s-home.on #anc .an-ring{border:2px solid #62dbf7!important;box-shadow:0 0 28px rgba(98,219,247,.24)!important}',
+    'html.win.scc #s-home.on #anc.s-on .an-ring{border-color:#57d6b4!important}',
+    'html.win.scc #anc .sc-howling .wf-m{box-shadow:0 0 22px rgba(98,219,247,.37)}',
+    'html.win.scc .sc-wolf-sound{position:absolute;right:6px;top:5px;z-index:5;min-height:34px;padding:4px 9px;border-radius:10px;color:#abc0cd;background:#101f2b;border:1px solid #417b91;cursor:pointer}',
     'html.win.scc #s-home.on .an-stat{flex:none;line-height:1.25}',
     'html.win.scc #s-home.on .an-time{flex:none;line-height:1.1}',
     'html.win.scc #s-home.on .w3-node{width:100%;max-width:440px;margin:12px auto 0}',
@@ -253,7 +259,10 @@
     ub.id = 'sc-upd';
     document.body.appendChild(ub);
 
-    nav = document.createElement('nav');
+    // Older cabinets hide every unknown <nav> element, including the installed client's menu.
+    nav = document.createElement('div');
+    nav.setAttribute('role', 'navigation');
+    nav.setAttribute('aria-label', 'Меню приложения');
     nav.className = 'sc-nav';
     nav.innerHTML = ['vpn', 'settings', 'profile'].map(function (k) {
       return '<button type="button" data-k="' + k + '">' + svg(ICON[k]) + '<span>' + NAMES[k] + '</span></button>';

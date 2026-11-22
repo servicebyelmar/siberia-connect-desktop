@@ -49,6 +49,7 @@
     <EmbeddedResource Include="Bridge.js" LogicalName="Bridge.js" />
     <EmbeddedResource Include="Offline.html" LogicalName="Offline.html" />
     <EmbeddedResource Include="Compact.js" LogicalName="Compact.js" />
+    <EmbeddedResource Include="WolfLive.js" LogicalName="WolfLive.js" />
     <EmbeddedResource Include="..\assets\app.ico" LogicalName="app.ico" />
     <EmbeddedResource Include="..\assets\app_off.ico" LogicalName="app_off.ico" />
     <!-- анимация логотипа: ролик, кадры, вой (wolf_howl.mp3 подхватится, как только файл появится в assets\wolf) -->

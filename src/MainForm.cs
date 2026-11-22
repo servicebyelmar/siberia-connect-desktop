@@ -49,6 +49,7 @@ public sealed class MainForm : Form
         MaximizeBox = false;
         ClientSize = new Size(360, 640);
         MinimumSize = Size;
+        MaximumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
         // 1.4.0: арктическая заставка (assets/splash.png — ледокол; пока файла нет, рисуется заготовка с логотипом)
@@ -392,7 +393,7 @@ public sealed class MainForm : Form
             int w = Math.Min(Width, wa.Width - 40), h = Math.Min(Height, wa.Height - 40);
             if (w != Width || h != Height)
             {
-                Size = new Size(Math.Max(w, 360), Math.Max(h, 480));
+                Size = MinimumSize;
                 Location = new Point(wa.Left + (wa.Width - Width) / 2, wa.Top + (wa.Height - Height) / 2);
             }
         }

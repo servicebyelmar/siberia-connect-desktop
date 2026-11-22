@@ -7,7 +7,14 @@
 
   var CSS = [
     /* каркас окна */
-    'html.win.scc,html.win.scc body{height:100vh;overflow:hidden!important;background:#060F2A}',
+
+    "html.win.scc body:before,html.win.scc body:after{content:'';position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(48px);opacity:.42}",
+    "html.win.scc body:before{width:260px;height:180px;left:-40px;top:6%;background:linear-gradient(100deg,transparent,#1ba98f 30%,#238ec2 65%,transparent)}",
+    "html.win.scc body:after{width:280px;height:200px;right:-50px;bottom:14%;background:linear-gradient(100deg,transparent,#37d9bd 25%,#7664d8 75%,transparent)}",
+    "html.win.scc .wrap,html.win.scc .sc-top,html.win.scc .sc-nav,html.win.scc .sc-set{z-index:2}",
+    "html.win.scc .wstat,html.win.scc .wsrv,html.win.scc .wright .wcard{background:linear-gradient(150deg,rgba(23,77,99,.45),rgba(20,41,75,.52))!important;border:1px solid rgba(127,211,255,.22)!important;box-shadow:inset 0 1px rgba(255,255,255,.08)}",
+
+    'html.win.scc,html.win.scc body{height:100vh;overflow:hidden!important;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)!important}',
     'html.win.scc #wside,html.win.scc .nav,html.win.scc #apphead{display:none!important}',
     'html.win.scc .wrap{position:fixed;top:34px;bottom:58px;left:0;right:0;max-width:none;margin:0;padding:4px 14px 8px!important;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}',
     'html.win.scc .wrap::-webkit-scrollbar{display:none}',
@@ -20,7 +27,7 @@
     '.sc-x{width:26px;height:26px;border:0;border-radius:50%;background:rgba(127,211,255,.08);color:#9FB8D6;font:inherit;font-size:18px;line-height:24px;text-align:center;cursor:pointer;padding:0;transition:background .2s,color .2s}',
     '.sc-x:hover{background:rgba(255,157,176,.22);color:#FF9DB0}',
     /* нижняя навигация */
-    '.sc-nav{position:fixed;left:0;right:0;bottom:0;height:58px;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);background:rgba(4,13,33,.97);border-top:1px solid rgba(159,184,214,.13)}',
+    '.sc-nav{position:fixed;left:0;right:0;bottom:0;height:58px;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);background:rgba(5,13,38,.88);backdrop-filter:blur(14px);border-top:1px solid rgba(159,184,214,.13)}',
     'html.win.nonav .sc-nav{display:none}',
     '.sc-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;color:#6F8DB0;font:inherit;font-size:11px;font-weight:650;cursor:pointer;padding:0;transition:color .2s}',
     '.sc-nav button svg{width:20px;height:20px}',
@@ -88,7 +95,7 @@
     'html.win.scc.scu .wrap{top:84px}',
     'html.win.scc.scu .sc-set{top:84px}',
     /* вкладка «Настройки» */
-    '.sc-set{display:none;position:fixed;left:0;right:0;top:34px;bottom:58px;z-index:8;padding:6px 14px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:#060F2A}',
+    '.sc-set{display:none;position:fixed;left:0;right:0;top:34px;bottom:58px;z-index:8;padding:6px 14px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)}',
     '.sc-set::-webkit-scrollbar{display:none}',
     '.sc-set.on{display:block}',
     '.sc-set .scdis{opacity:.5;cursor:default}',

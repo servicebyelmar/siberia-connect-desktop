@@ -7,7 +7,14 @@
 
   var CSS = [
     /* каркас окна */
-    'html.win.scc,html.win.scc body{height:100vh;overflow:hidden!important;background:#060F2A}',
+
+    "html.win.scc body:before,html.win.scc body:after{content:'';position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(48px);opacity:.42}",
+    "html.win.scc body:before{width:260px;height:180px;left:-40px;top:6%;background:linear-gradient(100deg,transparent,#1ba98f 30%,#238ec2 65%,transparent)}",
+    "html.win.scc body:after{width:280px;height:200px;right:-50px;bottom:14%;background:linear-gradient(100deg,transparent,#37d9bd 25%,#7664d8 75%,transparent)}",
+    "html.win.scc .wrap,html.win.scc .sc-top,html.win.scc .sc-nav,html.win.scc .sc-set{z-index:2}",
+    "html.win.scc .wstat,html.win.scc .wsrv,html.win.scc .wright .wcard{background:linear-gradient(150deg,rgba(23,77,99,.45),rgba(20,41,75,.52))!important;border:1px solid rgba(127,211,255,.22)!important;box-shadow:inset 0 1px rgba(255,255,255,.08)}",
+
+    'html.win.scc,html.win.scc body{height:100vh;overflow:hidden!important;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)!important}',
     'html.win.scc #wside,html.win.scc .nav,html.win.scc #apphead{display:none!important}',
     'html.win.scc .wrap{position:fixed;top:0;bottom:58px;left:0;right:0;max-width:none;margin:0;padding:4px 14px 8px!important;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}',
     'html.win.scc .wrap::-webkit-scrollbar{display:none}',
@@ -16,7 +23,7 @@
     'html.win.scc .screen{max-width:none}',
     /* верхняя полоса: перетаскивание и × */
     /* нижняя навигация */
-    '.sc-nav{position:fixed;left:0;right:0;bottom:0;height:58px;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);background:rgba(4,13,33,.97);border-top:1px solid rgba(159,184,214,.13)}',
+    '.sc-nav{position:fixed;left:0;right:0;bottom:0;height:58px;z-index:10;display:grid;grid-template-columns:repeat(3,1fr);background:rgba(5,13,38,.88);backdrop-filter:blur(14px);border-top:1px solid rgba(159,184,214,.13)}',
     'html.win.nonav .sc-nav{display:none}',
     '.sc-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;color:#6F8DB0;font:inherit;font-size:11px;font-weight:650;cursor:pointer;padding:0;transition:color .2s}',
     '.sc-nav button svg{width:20px;height:20px}',
@@ -68,7 +75,7 @@
     'html.win.scc .wrap:has(#s-home.on){top:0!important;padding-top:0!important}',
     'html.win.scc .wcenter:before{display:none!important}',
     'html.win.scc .worbw{width:calc(100% + 28px)!important;max-width:none!important;height:clamp(128px,38vh,310px)!important;margin:0 -14px 4px -14px!important;border-radius:0!important}',
-    'html.win.scc .worb{position:relative!important;inset:0!important;width:100%!important;height:100%!important;border-radius:0!important;border:0!important;box-shadow:none!important;background:#060F2A!important;-webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%);mask-image:linear-gradient(to bottom,#000 76%,transparent 100%)}',
+    'html.win.scc .worb{position:relative!important;inset:0!important;width:100%!important;height:100%!important;border-radius:0!important;border:0!important;box-shadow:none!important;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)!important;-webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%);mask-image:linear-gradient(to bottom,#000 76%,transparent 100%)}',
     'html.win.scc .worb video,html.win.scc .worb img{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;border-radius:0!important}',
     'html.win.scc .wtitle{height:27px;line-height:27px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}',
     'html.win.scc .wact{height:40px;min-height:40px;margin:8px 0 0;align-items:center}',
@@ -90,7 +97,7 @@
     'html.win.scc.scu .wrap{top:84px}',
     'html.win.scc.scu .sc-set{top:84px}',
     /* вкладка «Настройки» */
-    '.sc-set{display:none;position:fixed;left:0;right:0;top:0;bottom:58px;z-index:8;padding:6px 14px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:#060F2A}',
+    '.sc-set{display:none;position:fixed;left:0;right:0;top:0;bottom:58px;z-index:8;padding:6px 14px 10px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)}',
     '.sc-set::-webkit-scrollbar{display:none}',
     '.sc-set.on{display:block}',
     '.sc-set .scdis{opacity:.5;cursor:default}',
@@ -121,7 +128,7 @@
     '.scp-tile small{display:block;margin-top:2px;font-size:11.5px;color:#9FB8D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
 
     /* ── Windows 360×640: final layout overrides (CSS only; wolf_js is untouched) ── */
-    'html.win.scc,html.win.scc body{width:100%;max-width:100%;min-width:0;height:100vh;margin:0;padding:0;overflow:hidden!important;overflow-x:hidden!important;background:#060F2A!important;scrollbar-gutter:auto!important}',
+    'html.win.scc,html.win.scc body{width:100%;max-width:100%;min-width:0;height:100vh;margin:0;padding:0;overflow:hidden!important;overflow-x:hidden!important;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)!important;scrollbar-gutter:auto!important}',
     'html.win.scc .wrap{left:0!important;right:0!important;width:100%!important;max-width:none!important;min-width:0!important;overflow-x:hidden!important}',
     'html.win.scc .wrap:has(#s-home.on){top:0!important;bottom:58px!important;padding:0 14px 8px!important;overflow:hidden!important}',
     'html.win.scc #s-home,html.win.scc .screen{min-width:0!important;max-width:none!important;box-sizing:border-box}',
@@ -154,9 +161,9 @@
     'html.win.scc .wrap .screen input,html.win.scc .wrap .screen textarea,html.win.scc .wrap .screen select{max-width:100%;min-width:0}',
     'html.win.scc .wrap:has(#s-home.on),html.win.scc .wrap:has(#s-profile.on){scrollbar-gutter:auto!important}',
     /* Login: isolate the unauthenticated screen from all cabinet chrome/backgrounds. */
-    'html.win.scc.nonav,html.win.scc.nonav body{width:100%;height:100vh;margin:0!important;padding:0!important;overflow:hidden!important;background:#060F2A!important;background-image:none!important}',
+    'html.win.scc.nonav,html.win.scc.nonav body{width:100%;height:100vh;margin:0!important;padding:0!important;overflow:hidden!important;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)!important;background-image:none!important}',
     'html.win.scc.nonav .aurora,html.win.scc.nonav .snow,html.win.scc.nonav .nxstars,html.win.scc.nonav #wside,html.win.scc.nonav #apphead,html.win.scc.nonav .nav,html.win.scc.nonav .head{display:none!important}',
-    'html.win.scc.nonav .wrap,html.win.scc.nonav .wrap:has(#s-home.on){position:fixed!important;top:0!important;right:0!important;bottom:0!important;left:0!important;display:flex;align-items:center;justify-content:center;width:100%!important;max-width:none!important;min-width:0;padding:18px!important;margin:0!important;overflow-x:hidden!important;overflow-y:auto!important;background:#060F2A!important;scrollbar-gutter:auto!important}',
+    'html.win.scc.nonav .wrap,html.win.scc.nonav .wrap:has(#s-home.on){position:fixed!important;top:0!important;right:0!important;bottom:0!important;left:0!important;display:flex;align-items:center;justify-content:center;width:100%!important;max-width:none!important;min-width:0;padding:18px!important;margin:0!important;overflow-x:hidden!important;overflow-y:auto!important;background:radial-gradient(ellipse at 50% 30%,#102a53,#081735 45%,#050d26)!important;scrollbar-gutter:auto!important}',
     'html.win.scc.nonav #s-home.on{display:block;flex:0 0 auto;width:min(100%,324px);max-width:324px;max-height:100%;min-width:0;height:auto;margin:0 auto!important;padding:20px!important;overflow-x:hidden!important;overflow-y:auto!important;border:1px solid rgba(127,211,255,.18)!important;border-radius:22px!important;background:linear-gradient(145deg,rgba(16,39,80,.88),rgba(7,20,48,.96))!important;box-shadow:0 24px 80px rgba(0,0,0,.38)!important}',
     'html.win.scc.nonav #s-home .lgn{padding:0 0 12px!important;text-align:center}',
     'html.win.scc.nonav #s-home .lgn .lg{width:78px;height:78px;margin:0 auto 12px}',

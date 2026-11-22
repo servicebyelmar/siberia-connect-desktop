@@ -43,10 +43,11 @@ public sealed class MainForm : Form
         Icon = _iconOn;
         BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.Sizable;
-        MaximizeBox = true;
+        FormBorderStyle = FormBorderStyle.None;
+        MaximizeBox = false;
         ClientSize = new Size(360, 640);
-        MinimumSize = SizeFromClientSize(new Size(320, 400));
+        MinimumSize = Size;
+        MaximumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
         _splash = new SplashPanel();
@@ -365,7 +366,7 @@ public sealed class MainForm : Form
             int w = Math.Min(Width, wa.Width - 40), h = Math.Min(Height, wa.Height - 40);
             if (w != Width || h != Height)
             {
-                Size = new Size(Math.Max(w, 360), Math.Max(h, 480));
+                Size = MinimumSize;
                 Location = new Point(wa.Left + (wa.Width - Width) / 2, wa.Top + (wa.Height - Height) / 2);
             }
         }
@@ -542,7 +543,7 @@ public sealed class MainForm : Form
         s.IsGeneralAutofillEnabled = false;
         s.IsPasswordAutosaveEnabled = false;
 
-        WolfAssets.Attach(cw);
+        // WolfAssets disabled: keep classic animated snowflake
         _bridgeId = await cw.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript());
         cw.WebMessageReceived += OnWebMessage;
         cw.NavigationStarting += OnNavigationStarting;
@@ -565,7 +566,7 @@ public sealed class MainForm : Form
         init["deviceId"] = Core.DeviceId;
         return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString())
             + "\n" + AppInfo.ResourceText("Compact.js")
-            + "\n" + AppInfo.ResourceText("WolfLive.js");
+            ;
     }
 
     private static bool IsOurs(string uri) =>

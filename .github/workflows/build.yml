@@ -106,7 +106,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Sign update (ключ только в секретах GitHub)
-        if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
         shell: pwsh
         env:
           UPDATE_KEY: ${{ secrets.UPDATE_KEY }}

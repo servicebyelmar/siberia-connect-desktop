@@ -33,6 +33,7 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+      <EmbeddedResource Include="..\assets\aurora.jpg" LogicalName="aurora.jpg" Condition="Exists('..\assets\aurora.jpg')" />
   </ItemGroup>
 
   <!-- Пакет WebView2 для net5.0+ сам подключает ещё и Microsoft.Web.WebView2.Wpf.dll (build/Common.targets).

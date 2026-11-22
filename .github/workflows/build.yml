@@ -135,7 +135,7 @@ jobs:
         run: Compress-Archive -Path publish/* -DestinationPath "out/SiberiaConnect-Portable-$env:APP_VERSION.zip"
 
       - name: Release (установщик + update.json — сервер сам заберёт, проверит подпись и опубликует)
-        if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

@@ -123,6 +123,7 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJtbsgSW0nbzyKlp8jluMlmB2AOr5
         catch (Exception ex)
         {
             Log.Write("update check: " + ex.Message);
+            LastError = "Нет связи с сервером обновлений";
             return null;
         }
     }

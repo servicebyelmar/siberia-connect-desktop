@@ -43,13 +43,14 @@ public sealed class MainForm : Form
         Icon = _iconOn;
         BackColor = WindowFx.Brand;
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.None;
+        FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         ClientSize = new Size(360, 640);
         MinimumSize = Size;
         MaximumSize = Size;
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
+        // Wolf Standard: фирменный знак сибирского волка рисуется векторно на заставке
         _splash = new SplashPanel();
         Controls.Add(_splash);
         _splash.BringToFront();
@@ -366,7 +367,7 @@ public sealed class MainForm : Form
             int w = Math.Min(Width, wa.Width - 40), h = Math.Min(Height, wa.Height - 40);
             if (w != Width || h != Height)
             {
-                Size = MinimumSize;
+                Size = new Size(Math.Max(w, 360), Math.Max(h, 480));
                 Location = new Point(wa.Left + (wa.Width - Width) / 2, wa.Top + (wa.Height - Height) / 2);
             }
         }
@@ -543,7 +544,7 @@ public sealed class MainForm : Form
         s.IsGeneralAutofillEnabled = false;
         s.IsPasswordAutosaveEnabled = false;
 
-        // WolfAssets disabled: keep classic animated snowflake
+        WolfAssets.Attach(cw);
         _bridgeId = await cw.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript());
         cw.WebMessageReceived += OnWebMessage;
         cw.NavigationStarting += OnNavigationStarting;
@@ -564,9 +565,7 @@ public sealed class MainForm : Form
         var init = Snapshot();
         init["version"] = AppInfo.Version;
         init["deviceId"] = Core.DeviceId;
-        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString())
-            + "\n" + AppInfo.ResourceText("Compact.js")
-            ;
+        return AppInfo.ResourceText("Bridge.js").Replace("__INIT__", init.ToJsonString()) + "\n" + AppInfo.ResourceText("Compact.js");
     }
 
     private static bool IsOurs(string uri) =>

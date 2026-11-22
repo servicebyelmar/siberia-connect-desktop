@@ -104,8 +104,10 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJtbsgSW0nbzyKlp8jluMlmB2AOr5
     /// Фоновая проверка: на сервере версия выше текущей и подпись верна? Возвращает манифест, иначе null
     /// (обновлений нет, сервер недоступен или подпись не прошла — в этих случаях пользователю ничего не показываем).
     /// </summary>
+    public static string LastError { get; private set; }
     public static async Task<Manifest> Check()
     {
+        LastError = null;
         if (AppInstance.Forbid("Updater.Check")) return null;
         try
         {

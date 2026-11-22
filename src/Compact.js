@@ -71,6 +71,22 @@
     'html.win.scc .worbw{display:block;position:relative;align-self:center;margin-left:auto;margin-right:auto;contain:layout}',
     'html.win.scc .worb{position:absolute;inset:12%;width:auto;height:auto;margin:0;display:block}',
     'html.win.scc .worb>svg{position:absolute;inset:21%;width:58%;height:58%;transform-origin:50% 50%}',
+    'html.win.scc .worbw{width:214px!important;height:214px!important;margin:6px auto 10px!important}',
+    'html.win.scc .wtitle{font-size:22px;margin:0;line-height:1.2}',
+    'html.win.scc .wact{margin:8px 0 0;min-height:0}',
+    /* v-fix: знак волка не двигается при смене состояния (Connected/Connecting/Off).
+       Кнопка жёстко центрируется внутри контейнера фиксированного размера (inset, а не flow/transform),
+       место под заголовок и кнопки действий зарезервировано — высота группы не меняется,
+       поэтому flex-распорки не сдвигают кнопку; полоса прокрутки не может «уехать» вбок. */
+    'html.win.scc,html.win.scc body{overflow-x:hidden;scrollbar-gutter:stable both-edges}',
+    /* корень бага: .wdash{align-items:start} + flex-колонка → .wcenter сжималась по ширине содержимого
+       (заголовок/кнопки/таймер), и кнопка, центрированная в ней, «ехала» вправо при смене состояния */
+    'html.win.scc .wdash{align-items:stretch;width:100%}',
+    'html.win.scc .wcenter{align-items:center;align-self:stretch;width:100%;min-width:0}',
+    'html.win.scc .wcenter>.wstats,html.win.scc .wcenter>.wsrv{align-self:stretch}',
+    'html.win.scc .worbw{display:block;position:relative;align-self:center;margin-left:auto;margin-right:auto;contain:layout}',
+    'html.win.scc .worb{position:absolute;inset:12%;width:auto;height:auto;margin:0;display:block}',
+    'html.win.scc .worb>svg{position:absolute;inset:21%;width:58%;height:58%;transform-origin:50% 50%}',
     /* full-bleed: волк от края до края без чёрных полей по бокам */
     'html.win.scc .wrap:has(#s-home.on){top:0!important;padding-top:0!important}',
     'html.win.scc .wcenter:before{display:none!important}',
@@ -312,7 +328,7 @@
   }
 
   /* ───── плашка обновления: данные приходят из приложения (версия уже прошла проверку подписи) ───── */
-  var upd = { stage: '', pct: 0, skip: '' };
+  var upd = { stage: '', pct: 0, skip: '', note: '', manual: false };
 
   function updVer() {
     var v = '';
@@ -339,9 +355,13 @@
     var st = ev.stage;
     if (st === 'download') { upd.stage = 'download'; upd.pct = ev.pct | 0; }
     else if (st === 'ready' || st === 'install' || st === 'available') upd.stage = st;
-    else if (st === 'error') upd.stage = '';
-    else if (st === 'none') { try { toast('У тебя последняя версия ✓'); } catch (e) {} }
-    updBar();
+    if (st === 'checking') upd.note = 'Сверяю версию с сервером…';
+    else if (st === 'available') { upd.note = 'Доступна новая версия v' + (ev.version || updVer()); if (upd.manual) { upd.manual = false; try { toast(upd.note); } catch (e) {} } }
+    else if (st === 'ready') { upd.note = 'Обновление v' + (ev.version || updVer()) + ' готово к установке'; if (upd.manual) { upd.manual = false; try { toast(upd.note); } catch (e) {} } }
+    else if (st === 'download') upd.note = 'Загрузка обновления… ' + upd.pct + '%';
+    else if (st === 'error') { upd.stage = ''; upd.note = (ev.text || 'Нет связи с сервером') + ' · повторить'; if (upd.manual) { upd.manual = false; try { toast('⚠️ ' + (ev.text || 'Ошибка проверки')); } catch (e) {} } }
+    else if (st === 'none') { upd.stage = ''; var cv = ''; try { cv = window.SCNative.version(); } catch (e) {} upd.note = 'Установлена последняя версия' + (cv ? ' v' + cv : '') + ' ✓'; if (upd.manual) { upd.manual = false; try { toast(upd.note); } catch (e) {} } }
+    updBar(); var ss = $('sc-set'); if (ss && ss.classList.contains('on')) drawSettings();
   }
 
   window.scUpdGo2 = function () { upd.stage = 'download'; upd.pct = 0; updBar(); try { window.SCNative.installUpdate(); } catch (e) {} };
@@ -366,7 +386,7 @@
       row('phone', 'c2', 'Исключения', 'домены и приложения напрямую · скоро. Российские сайты и банки уже идут напрямую', '', '', true) +
       row('clock', 'c5', 'Сворачивание в трей', 'кнопка × прячет окно, VPN продолжает работать. Выход — значок у часов → «Выход»', '', '', true) +
       row('bolt', 'c4', 'Автообновление', 'скачивать и ставить новые версии само', 'scSetAu()', tg(au)) +
-      row('clock', 'c5', 'Проверить обновления', 'сейчас v' + ver, 'scCheckUpd()') +
+      (function(){var v=updVer(),b=upd.stage==='checking';return row('clock','c5',b?'Проверяю обновления…':(v?'Обновить до v'+v:'Проверить обновления'),upd.note||('Текущая версия v'+ver),b?'':(v?'scUpdGo2()':'scCheckUpd()'),'',b);})() +
       row('gear', 'c5', 'Отправить логи', 'архив ляжет на рабочий стол — отправьте его в поддержку', 'SCNative.advanced()') +
       row('ticket', 'c3', 'Ввести ключ, код или номер', 'vless://…, VPN-XXXX-XXXX, SC-XXXXX-XXXXX или номер подписки', 'scRedeemOpen()') +
       row('ticket', 'c3', 'Код для входа на другом устройстве', '', 'myCode()') +
@@ -389,7 +409,10 @@
   };
 
   window.scCheckUpd = function () {
-    try { toast('Проверяю обновления…'); window.SCNative.checkUpdate(); } catch (e) {}
+    if (upd.stage === 'checking') return;
+    upd.manual = true; upd.stage = 'checking'; upd.note = 'Сверяю версию с сервером…';
+    var ss = $('sc-set'); if (ss && ss.classList.contains('on')) drawSettings();
+    try { window.SCNative.checkUpdate(); } catch (e) { upd.manual = false; upd.stage = ''; upd.note = 'Ошибка запуска проверки'; }
   };
 
   /* ───── 1.5.0: одно поле для ключа, кода и номера подписки (тип определяет сервер) ───── */

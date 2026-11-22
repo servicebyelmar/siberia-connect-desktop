@@ -804,7 +804,8 @@ public sealed class MainForm : Form
     private async Task CheckUpdate(bool manual)
     {
         if (AppInstance.Forbid("проверка обновлений")) return;
-        if (Interlocked.Exchange(ref _updBusy, 1) == 1) return;
+        if (Interlocked.Exchange(ref _updBusy, 1) == 1) { if (manual) Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "checking" })); return; }
+        if (manual) Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "checking" }));
         try
         {
             var m = await Updater.Check();
@@ -814,7 +815,7 @@ public sealed class MainForm : Form
                 Ui(() =>
                 {
                     PushSnapshot();
-                    if (manual) Emit(new JsonObject { ["type"] = "update", ["stage"] = "none" });
+                    if (manual) Emit(new JsonObject { ["type"] = "update", ["stage"] = Updater.LastError != null ? "error" : "none", ["text"] = Updater.LastError ?? "" });
                 });
                 return;
             }

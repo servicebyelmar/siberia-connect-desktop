@@ -7,7 +7,7 @@ internal sealed class SplashPanel : Panel
     {
         Dock = DockStyle.Fill; BackColor = Color.FromArgb(6, 15, 42);
         DoubleBuffered = true; ResizeRedraw = true;
-        using var a = AppInfo.Resource("splash.png");
+        using var a = AppInfo.Resource("wolf/wolf-splash.png");
         using var im = Image.FromStream(a);
         _bg = new Bitmap(im);
     }

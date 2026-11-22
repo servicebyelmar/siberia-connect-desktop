@@ -63,9 +63,22 @@ public sealed partial class VpnCore
     /// <summary>1.3.2: та же подписка на запасном адресе (snezhnet:2096 ↔ relay sibir-cloud-api.ru:9443) — путь и ключ те же.</summary>
     internal static IEnumerable<string> SubCandidates(string url)
     {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u))
+        {
+            yield return url;
+            yield break;
+        }
+        const string edge = "sibirapp.duckdns.org";
+        string[] mirrors = { "snezhnet.duckdns.org:2096", "sibir-cloud-api.ru:9443" };
+        if (IsAllowedSubUrl(url) && (u.Authority == edge || mirrors.Contains(u.Authority))
+            && u.AbsolutePath.StartsWith("/ds275i4x6130qjd4/", StringComparison.Ordinal))
+        {
+            var primary = $"https://{edge}{u.PathAndQuery}";
+            foreach (var candidate in new[] { primary, url }.Concat(mirrors.Select(host => $"https://{host}{u.PathAndQuery}")).Distinct())
+                yield return candidate;
+            yield break;
+        }
         yield return url;
-        Uri u;
-        try { u = new Uri(url); } catch { yield break; }
         var h = u.IdnHost.ToLowerInvariant();
         string alt = h == "sibir-cloud-api.ru" ? "snezhnet.duckdns.org:2096"
                    : h == "snezhnet.duckdns.org" ? "sibir-cloud-api.ru:9443" : null;
@@ -126,7 +139,9 @@ public sealed partial class VpnCore
                 State.SubUrl = url;
                 State.Servers = list;
                 if (!list.Any(s => s.Guid == State.Selected))
-                    State.Selected = (list.FirstOrDefault(s => prev != null && s.Name == prev.Name) ?? list[0]).Guid;
+                    State.Selected = (list.FirstOrDefault(s => prev != null && s.Name == prev.Name)
+                        ?? list.FirstOrDefault(s => prev != null && s.Uri.Split('#', 2)[0] == prev.Uri.Split('#', 2)[0])
+                        ?? list[0]).Guid;
                 State.LastUpdate = DateTime.UtcNow;
                 State.Save();
                 restart = Running && (State.AutoSelect

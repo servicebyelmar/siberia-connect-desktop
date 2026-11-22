@@ -117,14 +117,14 @@
     '.scp-tile span{min-width:0;max-width:100%}',
     '.scp-tile b{display:block;font-size:14px}',
     '.scp-tile small{display:block;margin-top:2px;font-size:11.5px;color:#9FB8D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
-  ].join('\n');
+  ,"html.win.scc,html.win.scc body,.sc-set{background:#0B1017!important}\nhtml.win.scc .wrap{top:42px;bottom:82px;padding:0 18px!important}\n.sc-top{height:42px;padding:0 14px 0 20px}\n.sc-brand{font-size:11px;letter-spacing:.18em;color:#8E9BAE}\n.sc-x{width:28px;height:28px;background:rgba(255,255,255,.07);color:#CBD5E1;font-size:16px;line-height:28px}\n.sc-nav{left:14px;right:14px;bottom:14px;height:58px;border-radius:18px;background:#101722!important;border:1px solid rgba(255,255,255,.08)!important;padding:4px;gap:4px}\n.sc-nav button{border-radius:13px;color:#7C8B9E;font-size:11px;gap:4px}\n.sc-nav button.on{background:rgba(56,189,248,.12);color:#38BDF8!important}\nhtml.win.scc .wstats,html.win.scc .wright{display:none!important}\nhtml.win.scc .wcenter{justify-content:space-between;padding:8px 0 6px}\nhtml.win.scc .wcenter:before,html.win.scc .wcenter:after{display:none}\nhtml.win.scc .worbw{order:1;width:214px;height:214px;margin:6px auto 0}\nhtml.win.scc .worbw:before,html.win.scc .worbw:after{content:\"\";position:absolute;border-radius:50%;pointer-events:none;border:1px solid rgba(56,189,248,.22)}\nhtml.win.scc .worbw:before{inset:0}\nhtml.win.scc .worbw:after{inset:18px;border-color:rgba(56,189,248,.13)}\nhtml.win.scc .wtitle{order:2;font-size:18px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:#CBD5E1;margin-top:8px}\nhtml.win.scc .sc-tmr{order:3;font-family:ui-monospace,Consolas,monospace;font-size:21px;font-weight:700;letter-spacing:.14em;color:#64748B;margin-top:2px}\nhtml.win.scc .wact{order:4;margin:2px 0 0;min-height:28px;height:auto}\nhtml.win.scc .wsrv{order:5;background:#111822!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:16px;padding:12px 15px;margin-top:8px}\nhtml.win.scc .wsrv small{display:block!important;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#38BDF8;margin-bottom:2px}\nhtml.win.scc .wsrv b{font-size:13.5px;font-weight:700;color:#F1F5F9}"].join('\n');
 
   var ICON = {
     vpn: '<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.9 7.5-9.5V6z"/><path d="m9 12 2 2 4-4"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     profile: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-3.5 3.1-5.3 7-5.3s6.3 1.8 7 5.3"/>'
   };
-  var NAMES = { vpn: 'VPN', settings: 'Настройки', profile: 'Профиль' };
+  var NAMES = { vpn: 'Подключение', settings: 'Настройки', profile: 'Профиль' };
 
   function $(id) { return document.getElementById(id); }
   function send(cmd, args) { try { window.chrome.webview.postMessage(JSON.stringify({ cmd: cmd, args: args || [] })); } catch (e) {} }
@@ -623,7 +623,7 @@
   /* ───── правки текстов и реферальная карточка ───── */
   var TITLE = { 'Защищено': 'Подключено', 'Нажми на снежинку': 'Отключено' };
 
-  function tidy() {
+  function tidy() {var t=$("wtitle");if(t){var wc=document.querySelector(".wcenter");if(wc&&!document.querySelector(".sc-tmr")){var tm=document.createElement("div");tm.className="sc-tmr";tm.id="sc-tmr";tm.textContent="00:00:00";t.after(tm);}var tm=$("sc-tmr"),w1=$("wt1");if(tm&&w1){var v=(w1.textContent||"").trim();tm.textContent=/\d/.test(v)?v:"00:00:00";tm.style.color=/\d/.test(v)?"#E2E8F0":"#64748B";}}var sr=document.querySelector(".wsrv small");if(sr&&sr.textContent!=="УЗЕЛ")sr.textContent="УЗЕЛ";
     var t = $('wtitle');
     if (t && TITLE[t.textContent]) t.textContent = TITLE[t.textContent];
 

@@ -13,7 +13,7 @@ internal static class WindowFx
     public const string Acrylic = "acrylic";
     public const string Off = "off";
 
-    public static readonly Color Brand = Color.FromArgb(6, 15, 42);
+    public static readonly Color Brand = Color.FromArgb(11, 16, 23);
 
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_CAPTION_COLOR = 35;

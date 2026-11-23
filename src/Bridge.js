@@ -92,6 +92,7 @@
     autoMode: function () { return !!S.auto; },
     setAutoMode: function (on) { S.auto = !!on; send('autoMode', [!!on]); },
     activeServer: function () { return S.activeGuid || ''; },
+    pingAll: function () { send('pingAll'); },
     /* 1.1.0 */
     backdrop: function () { return S.backdrop || 'mica'; },          // mica | acrylic | off
     backdropSupported: function () { return !!S.backdropSupported; },

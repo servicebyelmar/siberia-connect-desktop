@@ -56,4 +56,7 @@
     <EmbeddedResource Include="..\assets\splash.png" LogicalName="splash.png" Condition="Exists('..\assets\splash.png')" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="..\assets\siberia-splash-wolf.jpg" LogicalName="siberia-splash-wolf.jpg" />
+  </ItemGroup>
 </Project>

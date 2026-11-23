@@ -60,6 +60,10 @@
        место под заголовок и кнопки действий зарезервировано — высота группы не меняется,
        поэтому flex-распорки не сдвигают кнопку; полоса прокрутки не может «уехать» вбок. */
     'html.win.scc,html.win.scc body{overflow-x:hidden;scrollbar-gutter:stable both-edges}',
+    'html.scc:has(#sc-auth.on:not(.hold)),html.scc:has(#sc-auth.on:not(.hold)) body{scrollbar-gutter:auto!important;background:#091729!important}',
+    // Веб-кнопка Telegram остаётся доступна коду, но старый экран входа не рисуется.
+    'html.win.scc #s-home:has(#lgbox){visibility:hidden}',
+    'html.scc:has(#sc-auth.on:not(.hold)) :is(.sc-nav,#w3bar,.sc-upd){visibility:hidden}',
     /* корень бага: .wdash{align-items:start} + flex-колонка → .wcenter сжималась по ширине содержимого
        (заголовок/кнопки/таймер), и кнопка, центрированная в ней, «ехала» вправо при смене состояния */
     'html.win.scc .wdash{align-items:stretch;width:100%}',
@@ -458,9 +462,19 @@
       'aria-label="QR-код для входа"><rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#050D1A"/></svg>';
   }
 
-  var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:34px;bottom:0;z-index:50;overflow-y:auto;background:#060F2A;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#DFF1FF}' +
+  var AU_CSS = '#sc-auth{position:fixed;left:0;right:0;top:34px;bottom:0;z-index:50;overflow-y:auto;background:#091729;padding:6px 14px 18px;box-sizing:border-box;display:none;color:#DFF1FF}' +
     '#sc-auth.on{display:block}#sc-auth.hold{display:none}' +
-    '#sc-auth h1{font-size:19px;margin:6px 0 12px;text-align:center}' +
+    '#sc-auth .sc-au-transition{display:none}' +
+    '#sc-auth.sc-au-finishing .sc-au-login{display:none}' +
+    '#sc-auth.sc-au-finishing .sc-au-transition{display:grid;min-height:100%;place-content:center;text-align:center;color:#A9C7E3;font-size:14px}' +
+    '#sc-auth h1{font-size:24px;margin:0;text-align:center;letter-spacing:-.025em}' +
+    '#sc-auth .sc-au-brand{display:flex;align-items:center;gap:9px;margin:6px 0 18px;color:#A9C7E3;font-size:12px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}' +
+    '#sc-auth .sc-au-brand img{width:34px;height:34px;border-radius:10px}' +
+    '#sc-auth .sc-au-login{max-width:430px;margin-inline:auto}' +
+    '#sc-auth .sc-au-c.sc-au-key{align-items:stretch;text-align:left}' +
+    '#sc-auth .sc-au-key .sc-au-s{font-size:12px;text-align:left}' +
+    '#sc-auth #sc-au-open{width:100%;margin-top:2px}' +
+    '#sc-auth #sc-au-msg:empty{display:none}' +
     '.sc-au-g{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;max-width:900px;margin:0 auto}' +
     '@media (min-width:720px){.sc-au-g{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}' +
     '.sc-au-c{background:#102444;border:1px solid #1C5A80;border-radius:18px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}' +
@@ -484,18 +498,21 @@
     var st = document.createElement('style'); st.id = 'scc-au-css'; st.textContent = AU_CSS;
     (document.head || document.documentElement).appendChild(st);
     var el = document.createElement('div'); el.id = 'sc-auth';
-    el.innerHTML = '<h1>Вход в Siberia Connect</h1><div class="sc-au-g">' +
-      '<section class="sc-au-c" aria-labelledby="sc-au-h2"><h2 id="sc-au-h2">Войдите по мастер-ключу</h2>' +
-      '<input id="sc-au-in" class="sc-au-in" autocomplete="off" spellcheck="false" aria-label="Мастер-ключ" placeholder="Мастер-ключ (Ctrl+V)">' +
+    el.innerHTML = '<div class="sc-au-login"><div class="sc-au-brand"><img src="icons/icon-192.png" alt="">Siberia Connect</div><div class="sc-au-g">' +
+      '<section class="sc-au-c sc-au-key" aria-labelledby="sc-au-h2"><h1 id="sc-au-h2">Вход по ключу</h1>' +
+      '<p class="sc-au-s">Возьмите мастер-ключ в личном кабинете или Telegram-боте.</p>' +
+      '<input id="sc-au-in" class="sc-au-in" type="password" autocomplete="off" spellcheck="false" aria-label="Мастер-ключ" placeholder="Мастер-ключ">' +
       '<div id="sc-au-msg" class="sc-rd-msg" role="status" aria-live="polite" style="width:100%;text-align:left"></div>' +
       '<div class="sc-au-row"><button type="button" class="sc-au-b" id="sc-au-paste">Вставить</button>' +
       '<button type="button" class="sc-au-b p sc-au-b2" id="sc-au-go">Войти по ключу</button></div>' +
-      '<p class="sc-au-s">Мастер-ключ доступен в личном кабинете на сайте или в Telegram-боте</p></section></div>';
+      '<button type="button" class="sc-au-b" id="sc-au-open">Войти через Telegram</button></section></div></div>' +
+      '<div class="sc-au-transition" role="status">Открываем Siberia Connect…</div>';
     document.body.appendChild(el);
     var inp = $('sc-au-in');
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') auGo(); });
     inp.addEventListener('paste', function () { setTimeout(function () { inp.value = inp.value.trim(); }, 0); });
     $('sc-au-go').addEventListener('click', auGo);
+    $('sc-au-open').addEventListener('click', auTelegram);
     $('sc-au-paste').addEventListener('click', function () {
       if (rdBusy) return;
       var done = function (t) { inp.value = String(t || '').trim(); inp.focus(); };
@@ -504,6 +521,33 @@
     });
     return el;
   }
+  async function auTelegram() {
+    var button = $('sc-au-open');
+    if (!button || button.disabled || rdBusy) return;
+    button.disabled = true;
+    rdMsg('');
+    try {
+      // Кабинет уже обрабатывает login_start и login_poll. Запускаем его действующую кнопку.
+      var link = $('lgbtn');
+      var pending = typeof LG !== 'undefined' && LG && Date.now() < LG.until;
+      if ((!link || !pending) && typeof showLogin === 'function') {
+        await showLogin();
+        link = $('lgbtn');
+      }
+      if (!link) {
+        rdMsg('Не удалось подготовить вход через Telegram. Попробуйте ещё раз.', 'er');
+        return;
+      }
+      if (!button.closest('#sc-auth.on:not(.hold)') || window.SCNative.loggedIn() || rdBusy) return;
+      link.click();
+      rdMsg('Подтвердите вход в Telegram.');
+    } catch (e) {
+      rdMsg('Не удалось открыть Telegram. Попробуйте ещё раз.', 'er');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function auGo() {
     var i = $('sc-au-in');
     if (!i || rdBusy) return;
@@ -563,14 +607,16 @@
       auSchedule();
     }).catch(function () { if (AU.pair === p) auSchedule(); });             // нет связи — повторим
   }
-  /* раз в 0,5 с: показать/скрыть экран и включить/остановить опрос (окно свёрнуто или экран закрыт — поллинг стоит) */
+  /* Мост может получить токен раньше, чем кабинет заменит разметку входа главным экраном. */
   function authTick() {
     var need = false;
     try { need = !window.SCNative.loggedIn(); } catch (e) {}
-    var el = $('sc-auth') || (need ? auBuild() : null);
+    var finishing = !need && !!$('lgbox');
+    var el = $('sc-auth') || (need || finishing ? auBuild() : null);
     if (!el) return;
-    var sh = document.getElementById('wsheet');
-    el.classList.toggle('on', need);
+    var sh = $('wsheet');
+    el.classList.toggle('sc-au-finishing', finishing);
+    el.classList.toggle('on', need || finishing);
     el.classList.toggle('hold', need && !!sh && sh.classList.contains('on'));
   }
   document.addEventListener('visibilitychange', function () { if (document.hidden) auStop(); else setTimeout(authTick, 0); });

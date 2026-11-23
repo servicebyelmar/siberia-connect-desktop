@@ -19,6 +19,7 @@ public sealed class MainForm : Form
     private readonly WebView2 _web;
     private readonly NotifyIcon _tray = new();
     private readonly System.Windows.Forms.Timer _stats = new() { Interval = 1000 };
+    private readonly System.Windows.Forms.Timer _nodeLatencyTimer = new() { Interval = 20000 };
     private readonly System.Threading.Timer _refresh;
     private readonly Icon _iconOn = AppInfo.LoadIcon(true);
     private readonly Icon _iconOff = AppInfo.LoadIcon(false);
@@ -27,6 +28,7 @@ public sealed class MainForm : Form
     private bool _exiting;
     private bool _ready;
     private bool _webStarted;
+    private int _nodeLatencyQueued;
     private bool _glass;   // 1.1.0: Mica/Acrylic включён
 
     private readonly Panel _splash;
@@ -47,11 +49,11 @@ public sealed class MainForm : Form
         // бесрамочное окно со скруглёнными углами: шапку и кнопку × рисует сама страница (Compact.js)
         FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false;
-        ClientSize = new Size(360, 640);
-        MinimumSize = Size;
+        ClientSize = new Size(430, 820);
+        MinimumSize = new Size(360, 480);
         _web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = WindowFx.Brand };
         Controls.Add(_web);
-        // 1.4.0: арктическая заставка (assets/splash.png — ледокол; пока файла нет, рисуется заготовка с логотипом)
+        // Показываем заставку, пока WebView2 не загрузил интерфейс.
         _splash = new SplashPanel();
         Controls.Add(_splash);
         _splash.BringToFront();
@@ -66,6 +68,8 @@ public sealed class MainForm : Form
         SetupTray();
         StartUpdateTimer();
         _stats.Tick += (_, _) => PushStats();
+        _nodeLatencyTimer.Tick += (_, _) => QueueNodeLatency();
+        _nodeLatencyTimer.Start();
         _refresh = new System.Threading.Timer(_ =>
         {
             try
@@ -80,7 +84,11 @@ public sealed class MainForm : Form
         SystemEvents.SessionEnding += (_, _) => Core.Shutdown();
         // 1.5.0: после сна и при смене сети (Wi-Fi ↔ кабель ↔ модем) туннель проверяется сразу
         SystemEvents.PowerModeChanged += (_, e) => { if (e.Mode == PowerModes.Resume) { Telemetry.NoteResume(); Core.Kick("выход из сна", 5000); } };
-        System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => Core.Kick("смена сети", 4000);
+        System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) =>
+        {
+            Core.InvalidateNodeLatency();
+            Core.Kick("смена сети", 4000);
+        };
 
         if (Core.HasSub && (connectNow || (autostart && Core.State.AutoStart)))
             Task.Run(Core.Connect);
@@ -390,10 +398,15 @@ public sealed class MainForm : Form
         try
         {
             var wa = Screen.FromControl(this).WorkingArea;
-            int w = Math.Min(Width, wa.Width - 40), h = Math.Min(Height, wa.Height - 40);
+            int availableWidth = Math.Max(1, wa.Width - 40);
+            int availableHeight = Math.Max(1, wa.Height - 40);
+            MinimumSize = new Size(
+                Math.Min(MinimumSize.Width, availableWidth),
+                Math.Min(MinimumSize.Height, availableHeight));
+            int w = Math.Min(Width, availableWidth), h = Math.Min(Height, availableHeight);
             if (w != Width || h != Height)
             {
-                Size = new Size(Math.Max(w, 360), Math.Max(h, 480));
+                Size = new Size(w, h);
                 Location = new Point(wa.Left + (wa.Width - Width) / 2, wa.Top + (wa.Height - Height) / 2);
             }
         }
@@ -405,6 +418,7 @@ public sealed class MainForm : Form
         _allowShow = true;
         Show();
         if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        FitToScreen();
         Activate();
         BringToFront();
         StartWeb();
@@ -423,6 +437,7 @@ public sealed class MainForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        _nodeLatencyTimer.Dispose();
         Core.Shutdown();
         _tray.Visible = false;
         base.OnFormClosed(e);
@@ -635,6 +650,7 @@ public sealed class MainForm : Form
             return;
         }
         PushSnapshot();
+        if (e.IsSuccess) QueueNodeLatency();
     }
 
     private void OnWebMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -704,6 +720,9 @@ public sealed class MainForm : Form
                 Task.Run(() => { Core.Select(g); Ui(PushSnapshot); });
                 break;
             }
+            case "pingAll":
+                QueueNodeLatency();
+                break;
             case "open":
                 OpenExternal(A(0));
                 break;
@@ -814,6 +833,8 @@ public sealed class MainForm : Form
 
     // ───────────────────────── 1.4.0: тихое автообновление ─────────────────────────
 
+    // Локальный просмотр интерфейса без установки пакета поверх тестовой сборки.
+    private static readonly bool UiPreview = Environment.GetCommandLineArgs().Contains("--ui-preview");
     private Updater.Manifest _updM;
     private int _updBusy;
     private System.Threading.Timer _updTimer;
@@ -821,13 +842,13 @@ public sealed class MainForm : Form
     /// <summary>Проверка win.json в фоне: через 20 секунд после старта и затем раз в 6 часов (запуск окна не задерживается).</summary>
     private void StartUpdateTimer()
     {
-        if (AppInstance.Forbid("таймер обновлений")) return;
+        if (UiPreview || AppInstance.Forbid("таймер обновлений")) return;
         _updTimer = new System.Threading.Timer(_ => { _ = CheckUpdate(false); }, null, TimeSpan.FromSeconds(20), TimeSpan.FromHours(6));
     }
 
     private async Task CheckUpdate(bool manual)
     {
-        if (AppInstance.Forbid("проверка обновлений")) return;
+        if (UiPreview || AppInstance.Forbid("проверка обновлений")) return;
         if (Interlocked.Exchange(ref _updBusy, 1) == 1) { if (manual) Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "checking" })); return; }
         if (manual) Ui(() => Emit(new JsonObject { ["type"] = "update", ["stage"] = "checking" }));
         try
@@ -872,7 +893,7 @@ public sealed class MainForm : Form
 
     private void StartInstall()
     {
-        if (AppInstance.Forbid("установка обновления")) return;
+        if (UiPreview || AppInstance.Forbid("установка обновления")) return;
         var reconnect = Core.Running;
         Task.Run(async () =>
         {
@@ -926,7 +947,7 @@ public sealed class MainForm : Form
                 ["guid"] = s.Guid, ["name"] = s.Name,
                 ["selected"] = !auto && s.Guid == Core.State.Selected,
                 ["active"] = Core.Running && s.Guid == Core.ActiveGuid,
-                ["ping"] = Core.PingOf(s.Guid)
+                ["ping"] = Core.NodeLatencyOf(s.Guid)
             });
         return new JsonObject
         {
@@ -965,6 +986,21 @@ public sealed class MainForm : Form
 
     private void PushSnapshot() => Exec("window.__scSnap&&window.__scSnap(" + Snapshot().ToJsonString() + ")");
 
+    private void QueueNodeLatency()
+    {
+        if (!_ready || !Visible || _exiting || !Core.HasSub) return;
+        if (Interlocked.Exchange(ref _nodeLatencyQueued, 1) != 0) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (await Core.RefreshNodeLatency()) Ui(PushSnapshot);
+            }
+            catch (Exception ex) { Log.Write("node latency: " + ex.GetType().Name); }
+            finally { Interlocked.Exchange(ref _nodeLatencyQueued, 0); }
+        });
+    }
+
     private void PushStats()
     {
         if (!Visible) return;
@@ -979,11 +1015,52 @@ public sealed class MainForm : Form
         try { _ = _web.CoreWebView2.ExecuteScriptAsync(js); } catch { }
     }
 
+    [DllImport("shlwapi.dll", EntryPoint = "AssocQueryStringW", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern int AssocQueryString(
+        uint flags, uint query, string association, string verb, IntPtr output, ref uint length);
+
+    private static bool TryOpenTelegramLogin(Uri webLink)
+    {
+        if (webLink.Scheme != Uri.UriSchemeHttps || !webLink.IsDefaultPort || webLink.UserInfo.Length != 0
+            || !webLink.Host.Equals("t.me", StringComparison.OrdinalIgnoreCase)
+            || !webLink.AbsolutePath.TrimEnd('/').Equals("/SibirConnectBot", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Передаём тот же одноразовый код входа, который выдал сайт.
+        const string startPrefix = "?start=";
+        if (!webLink.Query.StartsWith(startPrefix, StringComparison.Ordinal)) return false;
+        var token = webLink.Query[startPrefix.Length..];
+        if (!System.Text.RegularExpressions.Regex.IsMatch(token, @"\A[A-Za-z0-9_-]{1,64}\z")) return false;
+
+        const uint assocIsProtocol = 0x00001000;
+        const uint assocCommand = 1;
+        const int requiredBufferReported = 1; // S_FALSE для запроса без буфера.
+        uint length = 0;
+        if (AssocQueryString(assocIsProtocol, assocCommand, "tg", "open", IntPtr.Zero, ref length)
+            != requiredBufferReported || length < 2)
+            return false;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo($"tg://resolve?domain=SibirConnectBot&start={token}")
+            {
+                UseShellExecute = true,
+                ErrorDialog = false
+            });
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
     private static void OpenExternal(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u)) return;
         if (u.Scheme != Uri.UriSchemeHttps && u.Scheme != Uri.UriSchemeHttp && u.Scheme != "tg") return;
+        if (TryOpenTelegramLogin(u)) return;
         try { Process.Start(new ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true }); }
         catch (Exception ex) { Log.Write("open: " + ex.Message); }
     }

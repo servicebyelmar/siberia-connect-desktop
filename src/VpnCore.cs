@@ -60,6 +60,86 @@ public sealed partial class VpnCore
 
     public bool HasSub => State.Servers.Count > 0;
 
+    // Быстрый TCP-замер для интерфейса. Рейтинг «Авто» продолжает использовать отдельную проверку туннеля.
+    private readonly object _latencyGate = new();
+    private readonly Dictionary<string, int> _nodeLatency = new();
+    private long _latencyStarted = -20000;
+    private int _latencyGeneration;
+    private bool _latencyBusy;
+
+    public int NodeLatencyOf(string guid)
+    {
+        lock (_latencyGate)
+            return _nodeLatency.TryGetValue(guid, out var delay) ? delay : 0;
+    }
+
+    public void InvalidateNodeLatency()
+    {
+        lock (_latencyGate)
+        {
+            _latencyGeneration++;
+            _nodeLatency.Clear();
+            _latencyStarted = Environment.TickCount64 - 20000;
+        }
+    }
+
+    public async Task<bool> RefreshNodeLatency()
+    {
+        int generation;
+        lock (_latencyGate)
+        {
+            var now = Environment.TickCount64;
+            if (_latencyBusy || now - _latencyStarted < 20000) return false;
+            _latencyBusy = true;
+            _latencyStarted = now;
+            generation = _latencyGeneration;
+        }
+
+        try
+        {
+            ServerItem[] servers;
+            lock (_gate) servers = State.Servers.ToArray();
+            var delays = new int[servers.Length];
+            await Parallel.ForEachAsync(Enumerable.Range(0, servers.Length),
+                new ParallelOptions { MaxDegreeOfParallelism = 4 },
+                async (index, _) => { delays[index] = await MeasureNodeLatency(servers[index]); });
+
+            lock (_latencyGate)
+            {
+                if (generation != _latencyGeneration) return false;
+                _nodeLatency.Clear();
+                for (var i = 0; i < servers.Length; i++) _nodeLatency[servers[i].Guid] = delays[i];
+                return true;
+            }
+        }
+        finally
+        {
+            lock (_latencyGate) _latencyBusy = false;
+        }
+    }
+
+    private static async Task<int> MeasureNodeLatency(ServerItem server)
+    {
+        if (!Uri.TryCreate(server.Uri, UriKind.Absolute, out var address) ||
+            !address.Scheme.Equals("vless", StringComparison.OrdinalIgnoreCase) ||
+            address.IsLoopback || string.IsNullOrEmpty(address.IdnHost) ||
+            address.Port is < 1 or > 65535)
+            return 0;
+
+        using var socket = new TcpClient();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(2500));
+        var watch = Stopwatch.StartNew();
+        try
+        {
+            await socket.ConnectAsync(address.IdnHost, address.Port, timeout.Token);
+            return Math.Max(1, (int)watch.ElapsedMilliseconds);
+        }
+        catch (OperationCanceledException) { return -1; }
+        catch (SocketException) { return -1; }
+        catch (ArgumentException) { return -1; }
+    }
+
+
     /// <summary>1.3.2: та же подписка на запасном адресе (snezhnet:2096 ↔ relay sibir-cloud-api.ru:9443) — путь и ключ те же.</summary>
     internal static IEnumerable<string> SubCandidates(string url)
     {
@@ -133,6 +213,7 @@ public sealed partial class VpnCore
                     ? !list.Any(s => s.Guid == ActiveGuid)                 // 1.2.0: в «Авто» — только если текущего сервера больше нет
                     : prev != null && prev.Guid != State.Selected);
             }
+            InvalidateNodeLatency();
             Log.Write($"sub ok: {list.Count} servers");
             if (restart) Task.Run(Reconnect);
             o["ok"] = true; o["count"] = list.Count; o["updated"] = 1; o["error"] = "";
